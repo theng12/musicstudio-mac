@@ -1,0 +1,12 @@
+{
+  "version": "3.6",
+  "title": "Music Studio KH",
+  "description": "Apple Silicon music generation — MusicGen, Stable Audio Open, Bark.",
+  "icon": "icon.png",
+  "platform": ["darwin"],
+  "arch": ["arm64"],
+  "links": {
+    "documentation": "README.md"
+  },
+  "tags": ["music", "audio", "mlx", "mac"]
+}

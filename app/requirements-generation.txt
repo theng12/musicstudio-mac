@@ -1,0 +1,16 @@
+# Heavy generation dependencies — installed by install_generation.js, NOT install.js.
+# Splitting these out keeps the Phase 1 install fast and small.
+#
+# IMPORTANT: We deliberately do NOT install `audiocraft`. Meta's audiocraft
+# pins torch==2.1.0 and xformers<0.0.23, which would force downgrades that
+# break the rest of the env. Modern `transformers` ships MusicGen directly
+# (MusicgenForConditionalGeneration), so we use that path instead.
+
+torch>=2.6
+torchaudio>=2.6
+transformers>=4.55
+diffusers>=0.30
+accelerate>=0.30
+sentencepiece>=0.2
+soundfile>=0.12
+numpy>=1.26
