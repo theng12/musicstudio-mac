@@ -109,6 +109,53 @@ FAMILIES: dict[str, Family] = {
             "Watch this one — it's actively improving."
         ),
     ),
+    "yue": Family(
+        id="yue",
+        label="YuE",
+        summary=(
+            "m-a-p's YuE ('乐') — the first open model that generates FULL SONGS with "
+            "vocals AND lyrics, end to end. The closest open-source answer to Suno / Udio. "
+            "A two-stage pipeline: a 7B stage-1 model writes and sings the song, a 1B "
+            "stage-2 model upsamples it. The most capable open music model — and the only "
+            "one in this catalog that genuinely benefits from a high-RAM Mac."
+        ),
+        how_to_use=(
+            "Give it a genre / mood prompt plus your own lyrics laid out in sections "
+            "(verse / chorus / bridge). It returns a multi-minute song with a lead vocal. "
+            "Heavy: the 7B stage-1 model wants 32 GB+ unified memory and is slow on Apple "
+            "Silicon — minutes per song, not seconds."
+        ),
+    ),
+    "audioldm2": Family(
+        id="audioldm2",
+        label="AudioLDM 2",
+        summary=(
+            "CVSSP's AudioLDM 2 — a latent-diffusion text-to-audio model that handles both "
+            "music and general sound. Diffusers-native (AudioLDM2Pipeline), so it offers a "
+            "different aesthetic than MusicGen and Stable Audio from a clean, well-supported "
+            "pipeline."
+        ),
+        how_to_use=(
+            "Prompt with descriptive text — instruments, mood, BPM, or concrete sounds. The "
+            "'music' checkpoint is tuned for music; 'large' is the higher-capacity general "
+            "model that also does sound effects. Diffusion sampling: more steps = better "
+            "quality but slower."
+        ),
+    ),
+    "magnet": Family(
+        id="magnet",
+        label="MAGNeT",
+        summary=(
+            "Meta's MAGNeT — a non-autoregressive sibling of MusicGen that decodes all "
+            "tokens in parallel instead of one at a time, making it several times faster "
+            "at comparable quality. Ships in audiocraft format."
+        ),
+        how_to_use=(
+            "Same prompting style as MusicGen (genre + instrumentation + mood + tempo). The "
+            "30-second variant generates longer clips; a 10-second variant also exists. "
+            "Great when you want fast instrumental drafts."
+        ),
+    ),
 }
 
 
@@ -322,6 +369,32 @@ CATALOG: tuple[ModelEntry, ...] = (
         ),
     ),
 
+    # ──────────── MAGNeT ────────────
+    ModelEntry(
+        repo="facebook/magnet-medium-30secs",
+        label="MAGNeT medium 30s (1.5B)",
+        family="magnet",
+        # Repo is 3.91 GB — audiocraft format only (state_dict.bin +
+        # compression_state_dict.bin), no transformers weights. Like AudioGen,
+        # generation needs Meta's audiocraft library — worker not wired yet.
+        size_gb=3.9,
+        gated=False,
+        min_unified_memory_gb=16,
+        recommended_hardware="M2 Pro / M3 16 GB.",
+        capabilities=("text-to-music",),
+        best_for="Non-autoregressive MusicGen sibling — decodes all tokens in parallel, so it's several times faster than MusicGen at similar quality. Good for quick 30-second instrumental drafts. (Generation worker isn't wired yet — the weights are audiocraft-format and need Meta's audiocraft library, same as AudioGen. Download now, use once it ships.)",
+        sample_rate_hz=32000,
+        max_duration_seconds=30,
+        use_cases=(
+            ("good",  "Fast drafts — parallel decoding beats MusicGen's token-by-token speed"),
+            ("good",  "30-second instrumental clips in a fraction of MusicGen-large's time"),
+            ("good",  "Same prompting style as MusicGen (genre + instrumentation + mood)"),
+            ("weak",  "Quality trails MusicGen-large on the most complex prompts"),
+            ("avoid", "Today: worker not yet wired — needs the audiocraft library"),
+            ("avoid", "Vocals / lyrics — instrumental only"),
+        ),
+    ),
+
     # ──────────── Stable Audio Open ────────────
     ModelEntry(
         repo="stabilityai/stable-audio-open-1.0",
@@ -349,6 +422,79 @@ CATALOG: tuple[ModelEntry, ...] = (
             ("weak",  "Requires HF license acceptance even though weights are 'open'"),
             ("weak",  "Slower per-clip than MusicGen on M-series Macs"),
             ("avoid", "Quick prompt scouting — MusicGen small is faster for iteration"),
+        ),
+    ),
+    ModelEntry(
+        repo="stabilityai/stable-audio-open-small",
+        label="Stable Audio Open small (341M)",
+        family="stable-audio",
+        # Repo ships base_model.ckpt + model.ckpt + model.safetensors — three
+        # copies of the same ~1.68 GB weights in stable-audio-tools format (no
+        # diffusers component dirs). Keep the safetensors copy → ~1.7 GB.
+        size_gb=1.7,
+        gated=True,    # 'auto' gate — license acceptance on the HF page
+        min_unified_memory_gb=8,
+        recommended_hardware="Any Apple Silicon Mac with 8 GB. Near-real-time on M-series.",
+        capabilities=("text-to-music", "sound-effects"),
+        best_for="The distilled, ARM-optimized Stable Audio — 341M params, fast enough for near-real-time generation on Apple Silicon, and the lightest high-quality option in the catalog. Great for quick sound design and short loops on 8 GB Macs. (This is the stable-audio-tools format, not diffusers — the small-model generation worker is on the roadmap; download works now.)",
+        sample_rate_hz=44100,
+        max_duration_seconds=11,
+        ignore_patterns=("base_model.ckpt", "model.ckpt"),
+        use_cases=(
+            ("good",  "Lightest high-quality model — 8 GB friendly and fast"),
+            ("good",  "Short sound design + loops (up to ~11 sec)"),
+            ("good",  "Near-real-time generation class on Apple Silicon"),
+            ("weak",  "Shorter ceiling than Stable Audio Open 1.0 (~11 vs 47 sec)"),
+            ("avoid", "Today: small-model worker not yet wired (stable-audio-tools format)"),
+        ),
+    ),
+
+    # ──────────── AudioLDM 2 ────────────
+    ModelEntry(
+        repo="cvssp/audioldm2-music",
+        label="AudioLDM 2 music",
+        family="audioldm2",
+        # Repo is 8.96 GB — ships .bin AND .safetensors for every diffusers
+        # component (language_model / text_encoder / unet / vae / vocoder).
+        # Keep safetensors only → ~4.5 GB.
+        size_gb=4.5,
+        gated=False,
+        min_unified_memory_gb=8,
+        recommended_hardware="Any Apple Silicon Mac with 8 GB.",
+        capabilities=("text-to-music",),
+        best_for="Music-tuned AudioLDM 2 — latent-diffusion text-to-music with a different aesthetic than MusicGen. Light enough for 8 GB Macs. (Diffusers-native via AudioLDM2Pipeline; the generation worker is on the roadmap — download now, generate once it ships.)",
+        sample_rate_hz=16000,
+        max_duration_seconds=30,
+        ignore_patterns=("*.bin",),
+        use_cases=(
+            ("good",  "Music-tuned diffusion — alternative aesthetic to MusicGen"),
+            ("good",  "8 GB Mac friendly"),
+            ("good",  "Diffusers-native — clean to run once wired"),
+            ("weak",  "16 kHz output — lower fidelity ceiling than 32 / 44 kHz models"),
+            ("avoid", "Today: worker not yet wired"),
+        ),
+    ),
+    ModelEntry(
+        repo="cvssp/audioldm2-large",
+        label="AudioLDM 2 large",
+        family="audioldm2",
+        # Repo is 11.93 GB — same .bin/.safetensors duplication as the music
+        # checkpoint but with a bigger 2.87 GB UNet. Keep safetensors → ~6.0 GB.
+        size_gb=6.0,
+        gated=False,
+        min_unified_memory_gb=16,
+        recommended_hardware="M2 Pro / M3 16 GB.",
+        capabilities=("text-to-music", "sound-effects"),
+        best_for="The higher-capacity AudioLDM 2 — handles both music and general sound effects from one model, with a larger UNet than the music checkpoint. (Diffusers-native via AudioLDM2Pipeline; the generation worker is on the roadmap — download now, generate once it ships.)",
+        sample_rate_hz=16000,
+        max_duration_seconds=30,
+        ignore_patterns=("*.bin",),
+        use_cases=(
+            ("good",  "Both music AND sound effects from one diffusion model"),
+            ("good",  "Larger UNet → more detail than the music checkpoint"),
+            ("good",  "Different aesthetic from MusicGen + Stable Audio — try all three"),
+            ("weak",  "16 kHz output — lower fidelity ceiling"),
+            ("avoid", "Today: worker not yet wired"),
         ),
     ),
 
@@ -449,6 +595,34 @@ CATALOG: tuple[ModelEntry, ...] = (
             ("weak",  "Quality still trails closed models (Suno, Udio)"),
             ("avoid", "Today: worker not yet wired"),
             ("avoid", "16 GB Macs — needs 24-32 GB to load comfortably"),
+        ),
+    ),
+
+    # ──────────── YuE ────────────
+    ModelEntry(
+        repo="m-a-p/YuE-s1-7B-anneal-en-cot",
+        label="YuE s1 7B (English)",
+        family="yue",
+        # Repo is 12.45 GB — three safetensors shards, no duplicate formats.
+        # This is stage 1 of a two-stage pipeline; the 1B stage-2 upsampler
+        # (m-a-p/YuE-s2-1B-general, ~3.9 GB) is pulled separately once the
+        # worker is wired.
+        size_gb=12.5,
+        gated=False,
+        min_unified_memory_gb=32,
+        recommended_hardware="M2 Max / M3 Max / Ultra with 32 GB+ unified memory. Slow on Mac.",
+        capabilities=("text-to-music", "vocal"),
+        best_for="The headline open model for FULL SONGS WITH VOCALS AND LYRICS — the closest open-source answer to Suno / Udio. A two-stage 7B + 1B pipeline that writes and sings a multi-minute song from your lyrics plus a genre prompt. The only model in this catalog that genuinely uses a high-RAM Mac. (Generation worker isn't wired yet — it needs YuE's inference stack; download the 7B weights now and use them once it ships. The 1B stage-2 upsampler downloads alongside it then.)",
+        sample_rate_hz=44100,
+        max_duration_seconds=240,
+        use_cases=(
+            ("good",  "Full songs with lead vocals + your own lyrics (verse / chorus / bridge)"),
+            ("good",  "Closest open alternative to Suno / Udio"),
+            ("good",  "Multi-minute output — far past every other model's ceiling"),
+            ("good",  "Actually benefits from 32 GB+ — the high-RAM showcase model"),
+            ("weak",  "Slow on Apple Silicon — minutes per song, not seconds"),
+            ("avoid", "Today: worker not yet wired — needs the YuE inference stack"),
+            ("avoid", "8-16 GB Macs — the 7B stage-1 model needs 32 GB+ headroom"),
         ),
     ),
 )
