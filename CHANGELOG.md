@@ -10,6 +10,20 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.3.1] — 2026-06-29
+
+### Fixed — "Install/Reinstall Generation" was unreachable once the startup service was installed
+
+Same fix as Image Studio KH 1.17.1. The audio generation stack (torch, torchaudio, transformers, diffusers, accelerate) is installed via **Install Generation** in the Pinokio sidebar — but that item only existed in the normal (non-service) menus. Once the **always-on startup service** was installed, the menu switched to "service mode" which omitted it, leaving no way to install the generation deps.
+
+- **`pinokio.js`** — the service-mode menu now includes **Install/Reinstall Generation**.
+- **`install_generation.js`** is now **service-aware**: in service mode it does NOT relaunch `start.js` (that would fight the launchd service for the fixed port) — it installs, then restarts the service (`restart_service.sh`) so the running server reloads Python and picks up the new packages.
+
+### Note
+- PATCH — launcher scripts only, no app/deps change. Just **Update**.
+
+---
+
 ## [1.3.0] — 2026-06-26
 
 ### Added — RAM planner: interactive memory slider + live "Best for your RAM" picks (Models tab)
