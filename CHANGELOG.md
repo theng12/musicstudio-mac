@@ -10,6 +10,49 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.3.2] — 2026-07-01
+
+### Fixed — Byte-size display split-brain (Models tab said 2.3 GB, download progress said 2.14 GB for the same file)
+
+Same class of bug as Voice Studio KH 1.7.2/1.7.3. The Models tab displayed model sizes via `formatGb(size_gb)` using the catalog's decimal-GB values (matching HuggingFace's own reporting on the repo page), but the Downloads tab and inline `downloadCaption()` used `humanBytes()` which divided raw byte counts by **1024** while still labeling the result "KB / MB / GB". Same physical size, two different unit conventions, both labeled identically — so a model the Models tab called "2.3 GB" would show "2.14 GB / 2.14 GB" during download.
+
+- **`app/frontend/app.js` — `humanBytes(n)`** now divides by 1000 (decimal, SI). Same labels, same call sites, correct math.
+- **`app/frontend/app.js` — `formatGb(gb)`** sub-1GB branch changed from `Math.round(gb * 1024)` to `Math.round(gb * 1000)`. A catalog entry of `size_gb=0.5` now displays as "500 MB" (was "512 MB").
+- Verified by simulating the helpers against the exact catalog values:
+  - `humanBytes(2.3e9)` → "2.30 GB" (was "2.14 GB", now matches the Models tab card).
+  - `humanBytes(2e7) + "/s"` → "20.0 MB/s" for a 20 MB/s download.
+  - `formatGb(0.5)` → "500 MB" (was "512 MB").
+
+### Fixed — Onboarding banner + primer said MusicGen small was 1.5 GB when the catalog says 2.3 GB
+
+Two hardcoded strings in `app/frontend/index.html` claimed `facebook/musicgen-small` was "1.5 GB" — a stale copy that survived the catalog rewrite. Fixed to match the catalog's authoritative `size_gb=2.3`.
+
+### Fixed — Three different "greens" for OK, three "ambers" for warn, two "reds" for bad (Models + Generate tabs)
+
+The app already has canonical semantic-state variables (`--ok`, `--warn`, `--bad` in `:root`), but several rule sets defined their own hex colors for the same meaning:
+
+- `.diag-ok` `#6ee7b7` / `.diag-warn` `#ffb347` / `.diag-bad` `#ff8a65` / `.diag-pending` `#fbbf24` (Dependency check panel).
+- `.chip.fit-ok` `#34d399` / `.chip.fit-tight` `#fbbf24` / `.chip.fit-risky` `#f87171` (Models tab hardware-fit chips).
+
+All were rendered simultaneously on the Models tab against the topbar `.dot.ok` (`--ok`) and cache chips (`--ok`/`--warn`/`--bad`), producing three visibly different "greens" for the same "OK/ready" state. Consolidated onto the canonical variables using the app's existing `color-mix()` tinting technique (already used by `.chip.fit-*`) — no new abstractions.
+
+- `.chip.fit-unknown` also swapped to `var(--muted)` for the same treatment; it's a fourth neutral state, not part of the OK/WARN/BAD triad.
+
+### Deliberately left unchanged
+
+- **All unified-memory / RAM `GB` displays** stay as-is — those describe OS-reported RAM which is conventionally binary/GiB (macOS says "16 GB" for 16 GiB). Different domain from network/file-transfer bytes.
+- **Sample rate `kHz`** — SI decimal by convention.
+- **`capabilityLabel` / `capabilityHint`** — dead code carried over from an image-studio fork (maps `txt2img`/`img2img` on music-side capabilities); falls through to the raw capability string via `map[c] || c`, so no user-visible bug.
+- **`min_unified_memory_gb * 1000` sort key** at `app.js:314` — a sort weight, not a display value.
+- **`len(img)//1024 KB`** inside the Python `curl` example on the API tab — illustrative example code, not a display bug.
+- **Terminology "cached" / "engine ready" / "fits"** — three DIFFERENT concepts (files on disk / files on disk AND engine deps installed / RAM check passes), not synonyms for the same state. No drift to consolidate.
+- **`.btn` class parity across buttons** — checked selector specificity per skill discipline; buttons use `button.ghost`/`button.primary`/element-tag selectors, so `.btn`-vs-no-`.btn` in markup has no rendering effect.
+
+### Note
+- PATCH — frontend-only (`app/frontend/{app.js,index.html,style.css}`), no Python change. **Just Update** from the Pinokio sidebar.
+
+---
+
 ## [1.3.1] — 2026-06-29
 
 ### Fixed — "Install/Reinstall Generation" was unreachable once the startup service was installed

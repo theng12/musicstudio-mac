@@ -1718,7 +1718,10 @@ function studio() {
 
     // ──────── formatters ────────
     formatGb(gb) {
-      if (gb < 1) return Math.round(gb * 1024) + " MB";
+      // Decimal MB/GB (÷1000) to match the catalog's `size_gb` convention and
+      // humanBytes() below. Previously used ×1024 which quietly turned a
+      // catalog value of 0.5 GB into "512 MB" instead of "500 MB".
+      if (gb < 1) return Math.round(gb * 1000) + " MB";
       return gb.toFixed(1) + " GB";
     },
 
@@ -1809,8 +1812,15 @@ function studio() {
 }
 
 function humanBytes(n) {
+  // Decimal units (÷1000, "KB/MB/GB/TB") — matches how HuggingFace reports repo
+  // sizes and how the catalog's `size_gb` is populated. Using binary (÷1024)
+  // with the same labels caused a visible split-brain: a model the Models tab
+  // labels "2.3 GB" would show "2.14 GB / 2.14 GB" during download because the
+  // catalog stored decimal-GB while the download progress used binary math.
+  // If we ever need actual binary display, switch the labels to "KiB/MiB/GiB"
+  // — never mix conventions with the same label.
   const units = ["B", "KB", "MB", "GB", "TB"];
   let i = 0;
-  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  while (n >= 1000 && i < units.length - 1) { n /= 1000; i++; }
   return n.toFixed(n < 10 ? 2 : 1) + " " + units[i];
 }

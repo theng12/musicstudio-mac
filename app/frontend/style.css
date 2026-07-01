@@ -921,7 +921,7 @@ input.num-input-wide { width: 130px; }
   transform: rotate(90deg);
 }
 .diag-summary-text { flex: 1; }
-.diag-warn { color: #ffb347; }
+.diag-warn { color: var(--warn); }
 .diag-body {
   padding: 0 16px 16px 16px;
   border-top: 1px solid var(--border, #2a2a32);
@@ -952,11 +952,11 @@ input.num-input-wide { width: 130px; }
   border-bottom: 1px solid color-mix(in srgb, var(--border, #2a2a32) 60%, transparent);
 }
 .diag-table td:first-child { width: 28px; }
-.diag-row-bad td { color: #ffb347; }
-.diag-row-bad code { color: #ff8a65; }
+.diag-row-bad td { color: var(--warn); }
+.diag-row-bad code { color: var(--bad); }
 .diag-version { font-family: ui-monospace, monospace; font-size: 0.9em; }
-.diag-ok { color: #6ee7b7; }
-.diag-bad { color: #ff8a65; }
+.diag-ok { color: var(--ok); }
+.diag-bad { color: var(--bad); }
 .diag-bad code { margin-right: 6px; }
 
 /* ──────── per-model engine-readiness chip + dep-warn banner ──────── */
@@ -1014,8 +1014,8 @@ input.num-input-wide { width: 130px; }
   border-color: color-mix(in srgb, #fbbf24 40%, transparent);
   color: #fbbf24;
 }
-.diag-row-pending td { color: #fbbf24; }
-.diag-pending { color: #fbbf24; }
+.diag-row-pending td { color: var(--warn); }
+.diag-pending { color: var(--warn); }
 .banner.info.dep-warn { margin-top: 12px; }
 
 
@@ -1420,10 +1420,10 @@ input.num-input-wide { width: 130px; }
 .best-pick-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 /* ─── Hardware-fit chips on each model card ─── */
-.chip.fit-ok      { background: color-mix(in srgb, #34d399 18%, transparent); color: #34d399; border-color: color-mix(in srgb, #34d399 40%, transparent); }
-.chip.fit-tight   { background: color-mix(in srgb, #fbbf24 18%, transparent); color: #fbbf24; border-color: color-mix(in srgb, #fbbf24 40%, transparent); }
-.chip.fit-risky   { background: color-mix(in srgb, #f87171 18%, transparent); color: #f87171; border-color: color-mix(in srgb, #f87171 40%, transparent); }
-.chip.fit-unknown { background: color-mix(in srgb, #888 12%, transparent); color: var(--muted, #888); border-color: var(--border, #2a2a32); }
+.chip.fit-ok      { background: color-mix(in srgb, var(--ok) 18%, transparent);   color: var(--ok);   border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.chip.fit-tight   { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.chip.fit-risky   { background: color-mix(in srgb, var(--bad) 18%, transparent);  color: var(--bad);  border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.chip.fit-unknown { background: color-mix(in srgb, var(--muted) 12%, transparent); color: var(--muted); border-color: var(--border); }
 
 /* ─── Structured use cases under each model card ─── */
 .use-case-list {
