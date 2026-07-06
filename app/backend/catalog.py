@@ -183,6 +183,13 @@ class ModelEntry:
     # one of "good" / "weak" / "avoid". The UI renders these as ✅ / ⚠️ / ❌
     # bullets so users can set realistic expectations BEFORE submitting.
     use_cases: tuple[tuple[str, str], ...] = field(default_factory=tuple)
+    # Compact comparison metadata for the family-first Models UI. These fields
+    # describe the option; generation and download routing still use repo/family.
+    variant_label: str = ""
+    quality_label: str = ""
+    speed_label: str = ""
+    runtime: str = "PyTorch / MPS"
+    format_label: str = ""
 
 
 # Common ignore patterns for transformers-loadable MusicGen / AudioGen repos.
@@ -209,6 +216,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="The recommended starter — smallest, fastest, runs on any M-series Mac. Great for instrumental ambient / background loops. ~5–10 seconds per generation.",
         sample_rate_hz=32000,
         max_duration_seconds=30,
+        variant_label="Small · 300M",
+        quality_label="Starter",
+        speed_label="Fast",
+        format_label="Transformers",
         ignore_patterns=(*_AUDIOCRAFT_LEGACY, "pytorch_model.bin"),
         use_cases=(
             ("good",  "Background loops, ambient pads, scene-setting music for video"),
@@ -233,6 +244,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         recommended_hardware="M2 Pro / M3 16 GB unified memory recommended.",
         capabilities=("text-to-music",),
         best_for="The quality sweet spot for MusicGen. Noticeably more detailed than small. Pick this when 16 GB+ is available and you want better musicality.",
+        variant_label="Medium · 1.5B",
+        quality_label="Balanced",
+        speed_label="Medium",
+        format_label="Transformers",
         ignore_patterns=_AUDIOCRAFT_LEGACY,
         use_cases=(
             ("good",  "Quality sweet spot — most users should pick this if they have 16 GB"),
@@ -255,6 +270,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         recommended_hardware="M2 Pro 32 GB+ / M2 Max / M3 Max for comfortable generation.",
         capabilities=("text-to-music",),
         best_for="Highest-quality MusicGen. Substantially slower per clip but worth it for final renders. Needs serious memory.",
+        variant_label="Large · 3.3B",
+        quality_label="Highest detail",
+        speed_label="Slow",
+        format_label="Transformers",
         ignore_patterns=_AUDIOCRAFT_LEGACY,
         use_cases=(
             ("good",  "Final renders where musical detail matters most"),
@@ -277,6 +296,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         recommended_hardware="M2 Pro / M3 16 GB. Same memory as medium.",
         capabilities=("text-to-music", "melody-continuation"),
         best_for="Same architecture as medium but conditioned to follow an input melody. Hum a tune or upload a riff and have it generate accompanying music in your prompted style.",
+        variant_label="Melody · 1.5B",
+        quality_label="Melody control",
+        speed_label="Medium",
+        format_label="Transformers",
         ignore_patterns=_AUDIOCRAFT_LEGACY,
         use_cases=(
             ("good",  "Melody-conditioned generation — upload a hummed tune, model fills in the arrangement"),
@@ -298,6 +321,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         recommended_hardware="Any Apple Silicon Mac with 8 GB.",
         capabilities=("text-to-music", "stereo"),
         best_for="Like small but outputs stereo. Pick this over mono small when you specifically want stereo width for headphones / spatial mixes.",
+        variant_label="Stereo small · 300M",
+        quality_label="Fast stereo",
+        speed_label="Fast",
+        format_label="Transformers",
         ignore_patterns=(*_AUDIOCRAFT_LEGACY, "pytorch_model.bin", "*.fp32.bin", "*.fp32.safetensors"),
         use_cases=(
             ("good",  "Stereo output for headphone mixes + spatial sound design"),
@@ -318,6 +345,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         recommended_hardware="M2 Pro / M3 16 GB.",
         capabilities=("text-to-music", "stereo"),
         best_for="Stereo version of medium. The all-around best balance of quality + stereo width on 16 GB Macs.",
+        variant_label="Stereo medium · 1.5B",
+        quality_label="Balanced stereo",
+        speed_label="Medium",
+        format_label="Transformers",
         ignore_patterns=(*_AUDIOCRAFT_LEGACY, "pytorch_model.bin"),
         use_cases=(
             ("good",  "Best stereo MusicGen for most 16 GB Mac users"),
@@ -338,6 +369,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         recommended_hardware="M2 Max 32 GB+ recommended.",
         capabilities=("text-to-music", "stereo"),
         best_for="Best mainstream MusicGen output. Slow per clip, stereo, top quality. Use for final renders on capable hardware.",
+        variant_label="Stereo large · 3.3B",
+        quality_label="Best stereo",
+        speed_label="Slow",
+        format_label="Transformers",
         ignore_patterns=(*_AUDIOCRAFT_LEGACY, "pytorch_model-*.bin"),
         use_cases=(
             ("good",  "Highest-quality stereo MusicGen — reference output"),
@@ -360,6 +395,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         recommended_hardware="M2 Pro / M3 16 GB.",
         capabilities=("sound-effects",),
         best_for="Sound effects, foley, and ambient audio — NOT music. Prompt with concrete acoustic events ('rain on metal roof', 'crickets at night'). The complement to MusicGen. (Generation worker isn't wired yet — needs the audiocraft library. You can download the weights now and use them once it ships.)",
+        variant_label="Medium · 1.5B",
+        quality_label="SFX specialist",
+        speed_label="Medium",
+        format_label="Audiocraft",
         use_cases=(
             ("good",  "Foley + sound design ('footsteps on gravel', 'distant thunder')"),
             ("good",  "Ambient atmospheres for podcasts + games"),
@@ -385,6 +424,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="Non-autoregressive MusicGen sibling — decodes all tokens in parallel, so it's several times faster than MusicGen at similar quality. Good for quick 30-second instrumental drafts. (Generation worker isn't wired yet — the weights are audiocraft-format and need Meta's audiocraft library, same as AudioGen. Download now, use once it ships.)",
         sample_rate_hz=32000,
         max_duration_seconds=30,
+        variant_label="Medium · 30 seconds",
+        quality_label="Fast drafts",
+        speed_label="Fast",
+        format_label="Audiocraft",
         use_cases=(
             ("good",  "Fast drafts — parallel decoding beats MusicGen's token-by-token speed"),
             ("good",  "30-second instrumental clips in a fraction of MusicGen-large's time"),
@@ -413,6 +456,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="Longer clips (up to ~47s) and high-fidelity output for both music and sound effects. Different aesthetic than MusicGen — try both and see which suits your prompts. Accept license on the HF page once.",
         sample_rate_hz=44100,
         max_duration_seconds=47,
+        variant_label="Open 1.0",
+        quality_label="High fidelity",
+        speed_label="Slow",
+        format_label="Diffusers",
         ignore_patterns=("model.ckpt", "model.safetensors", "vae_model.ckpt", "*.csv"),
         use_cases=(
             ("good",  "Longer clips (up to 47 sec vs MusicGen's 30 sec ceiling)"),
@@ -439,6 +486,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="The distilled, ARM-optimized Stable Audio — 341M params, fast enough for near-real-time generation on Apple Silicon, and the lightest high-quality option in the catalog. Great for quick sound design and short loops on 8 GB Macs. (This is the stable-audio-tools format, not diffusers — the small-model generation worker is on the roadmap; download works now.)",
         sample_rate_hz=44100,
         max_duration_seconds=11,
+        variant_label="Open small · 341M",
+        quality_label="Lightweight",
+        speed_label="Fast",
+        format_label="Stable Audio Tools",
         ignore_patterns=("base_model.ckpt", "model.ckpt"),
         use_cases=(
             ("good",  "Lightest high-quality model — 8 GB friendly and fast"),
@@ -465,6 +516,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="Music-tuned AudioLDM 2 — latent-diffusion text-to-music with a different aesthetic than MusicGen. Light enough for 8 GB Macs. (Diffusers-native via AudioLDM2Pipeline; the generation worker is on the roadmap — download now, generate once it ships.)",
         sample_rate_hz=16000,
         max_duration_seconds=30,
+        variant_label="Music",
+        quality_label="Music specialist",
+        speed_label="Medium",
+        format_label="Diffusers",
         ignore_patterns=("*.bin",),
         use_cases=(
             ("good",  "Music-tuned diffusion — alternative aesthetic to MusicGen"),
@@ -488,6 +543,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="The higher-capacity AudioLDM 2 — handles both music and general sound effects from one model, with a larger UNet than the music checkpoint. (Diffusers-native via AudioLDM2Pipeline; the generation worker is on the roadmap — download now, generate once it ships.)",
         sample_rate_hz=16000,
         max_duration_seconds=30,
+        variant_label="Large",
+        quality_label="Versatile",
+        speed_label="Slow",
+        format_label="Diffusers",
         ignore_patterns=("*.bin",),
         use_cases=(
             ("good",  "Both music AND sound effects from one diffusion model"),
@@ -515,6 +574,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="Generates short loopable clips via Stable-Diffusion-on-spectrograms. Lower fidelity than MusicGen but very fast iteration. Good for prototyping vibes / textures. (Generation worker isn't wired yet — needs a spectrogram→audio decoder.)",
         sample_rate_hz=44100,
         max_duration_seconds=5,
+        variant_label="Version 1",
+        quality_label="Experimental",
+        speed_label="Fast",
+        format_label="Diffusers",
         ignore_patterns=("riffusion-model-v1.ckpt", "unet_traced/*", "safety_checker/*"),
         use_cases=(
             ("good",  "Very short loopable clips (~5 sec) for textures + vibes"),
@@ -542,6 +605,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="Vocal/musical hybrids and short expressive audio. Bark embeds tags like [MUSIC] [singing] [laughter] in prompts. Not the right pick for pure instrumental music — use MusicGen for that — but unique for vocal snippets.",
         sample_rate_hz=24000,
         max_duration_seconds=14,
+        variant_label="Full",
+        quality_label="Most expressive",
+        speed_label="Medium",
+        format_label="Transformers",
         ignore_patterns=("*.pt",),
         use_cases=(
             ("good",  "Vocal snippets + musical hybrids ([MUSIC], [singing], [♪♪])"),
@@ -567,6 +634,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="Half-size Bark with most of the capability at lower fidelity. Good for experimenting with vocal/music hybrids on small hardware.",
         sample_rate_hz=24000,
         max_duration_seconds=14,
+        variant_label="Small",
+        quality_label="Lightweight",
+        speed_label="Fast",
+        format_label="Transformers",
         use_cases=(
             ("good",  "Try Bark's tag system on 8 GB Macs"),
             ("good",  "Quicker iteration on Bark prompts before committing to full Bark"),
@@ -588,6 +659,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="Newest open-source music foundation model (released May 2025). Closest open option to Suno-style vocal music with lyric conditioning. Quality still trails closed models — but actively improving. Watch this one for jazz-with-lyrics. (Generation worker isn't wired yet — needs the ace-step library and ≥24 GB RAM.)",
         sample_rate_hz=44100,
         max_duration_seconds=60,
+        variant_label="Version 1 · 3.5B",
+        quality_label="Vocals + lyrics",
+        speed_label="Slow",
+        format_label="ACE-Step native",
         use_cases=(
             ("good",  "Vocal music with lyric conditioning (closest open Suno-alike)"),
             ("good",  "Longest output ceiling in the catalog (~60 sec)"),
@@ -615,6 +690,10 @@ CATALOG: tuple[ModelEntry, ...] = (
         best_for="The headline open model for FULL SONGS WITH VOCALS AND LYRICS — the closest open-source answer to Suno / Udio. A two-stage 7B + 1B pipeline that writes and sings a multi-minute song from your lyrics plus a genre prompt. The only model in this catalog that genuinely uses a high-RAM Mac. (Generation worker isn't wired yet — it needs YuE's inference stack; download the 7B weights now and use them once it ships. The 1B stage-2 upsampler downloads alongside it then.)",
         sample_rate_hz=44100,
         max_duration_seconds=240,
+        variant_label="Stage 1 · 7B · English",
+        quality_label="Full songs",
+        speed_label="Very slow",
+        format_label="YuE native",
         use_cases=(
             ("good",  "Full songs with lead vocals + your own lyrics (verse / chorus / bridge)"),
             ("good",  "Closest open alternative to Suno / Udio"),
@@ -675,6 +754,11 @@ def serialize_model(m: ModelEntry) -> dict:
         # New in v1.1 — structured use cases + hardware fit verdict.
         "use_cases": [{"kind": k, "text": t} for k, t in m.use_cases],
         "fit": fit,
+        "variant_label": m.variant_label or m.label,
+        "quality_label": m.quality_label,
+        "speed_label": m.speed_label,
+        "runtime": m.runtime,
+        "format_label": m.format_label,
     }
 
 

@@ -126,7 +126,8 @@ function studio() {
       // "all" | "ok" (green) | "tight" (yellow) | "over" (red)
       fitLevel: "all",
       sortBy: "default",
-      collapsedFamilies: new Set(),
+      advancedOpen: false,
+      openFamilies: new Set(),
       // Per-repo "show full details" toggle. Cards default to compact.
       expandedRepos: new Set(),
     },
@@ -179,10 +180,10 @@ function studio() {
       // Also re-measure on next animation frame in case fonts/layout settle late.
       requestAnimationFrame(() => this._syncTopbarHeight());
       await this.refreshCatalog();
-      // After catalog loads we know whether MLX models exist — set the MLX-only
-      // filter default based on that. Music's catalog is 0 MLX today so this
-      // is a no-op here, but the same code is shared with Image + Voice.
+      // Clear stale presentation filters so a fresh visit always shows the
+      // complete catalog, then open the best initial family.
       this._initFilterPreferences();
+      this._initFamilyLibrary();
       // When the selected model changes, clamp gen.duration to the new model's
       // max_duration_seconds so the UI value matches the slider's new ceiling
       // (the backend clamps too, but the visible number would otherwise lie).
@@ -310,7 +311,8 @@ function studio() {
      *  still fits the current budget (fit ≠ risky). "Highest quality" ≈ the
      *  heaviest tier that fits, nudged by a "recommended" label. Live. */
     get bestPicks() {
-      const fits  = (m) => this.fitFor(m.min_unified_memory_gb).state !== "risky";
+      const fits  = (m) => this.fitFor(m.min_unified_memory_gb).state !== "risky"
+        && this.isModelReady(m.repo);
       const score = (m) => (Number(m.min_unified_memory_gb) || 0) * 1000
                          + (Number(m.size_gb) || 0) * 10
                          + (/recommended/i.test(m.label || "") ? 5 : 0);
@@ -343,7 +345,8 @@ function studio() {
         if (f.statuses.size > 0) {
           const state = m.cache?.state || "absent";
           const isReady = this.isModelReady ? this.isModelReady(m.repo) : (state === "cached");
-          const matchesState = f.statuses.has(state) || (f.statuses.has("engine-ready") && isReady);
+          const matchesState = f.statuses.has(state)
+            || (f.statuses.has("engine-ready") && state === "cached" && isReady);
           if (!matchesState) return false;
         }
         if (f.capabilities.size > 0) {
@@ -365,7 +368,10 @@ function studio() {
         // Legacy "Fits my Mac" — exclude "risky"; now scored client-side too.
         if (f.fitsMyMac && this.fitFor(m.min_unified_memory_gb).state === "risky") return false;
         if (q) {
-          const hay = ((m.label || "") + " " + (m.repo || "") + " " + (m.best_for || "")).toLowerCase();
+          const hay = ((m.label || "") + " " + (m.family_label || "") + " "
+            + (m.variant_label || "") + " " + (m.quality_label || "") + " "
+            + (m.speed_label || "") + " " + (m.runtime || "") + " "
+            + (m.repo || "") + " " + (m.best_for || "")).toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
@@ -389,7 +395,14 @@ function studio() {
     get availableCapabilities() {
       const set = new Set();
       for (const m of this.models) for (const c of (m.capabilities || [])) set.add(c);
-      return Array.from(set).sort();
+      const order = {
+        "text-to-music": 0,
+        "melody-continuation": 1,
+        "sound-effects": 2,
+        vocal: 3,
+        stereo: 4,
+      };
+      return Array.from(set).sort((a, b) => (order[a] ?? 99) - (order[b] ?? 99) || a.localeCompare(b));
     },
     get availableFamilies() {
       const seen = new Set();
@@ -403,6 +416,55 @@ function studio() {
     },
     get filteredModelTotalCount() {
       return Object.values(this.filteredModelsByFamily).reduce((s, list) => s + list.length, 0);
+    },
+    /** Family-first view model. Downloaded families come first, then families
+     *  with an option that fits the selected RAM budget. */
+    get visibleFamilies() {
+      const families = Object.values(this.families || {})
+        .map((f, index) => ({ ...f, catalogOrder: index, models: this.filteredModelsByFamily[f.id] || [] }))
+        .filter(f => f.models.length > 0);
+      const rank = (f) => {
+        const cached = f.models.some(m => m.cache?.state === "cached") ? 0 : 1;
+        const ready = f.models.some(m => this.isModelReady(m.repo)) ? 0 : 1;
+        const fits = f.models.some(m => this.fitFor(m.min_unified_memory_gb).state !== "risky") ? 0 : 1;
+        return cached * 1000 + ready * 100 + fits * 10;
+      };
+      return families.sort((a, b) => rank(a) - rank(b) || a.catalogOrder - b.catalogOrder);
+    },
+    familyCapabilities(family) {
+      const caps = new Set();
+      for (const m of (family.models || [])) {
+        for (const cap of (m.capabilities || [])) caps.add(cap);
+      }
+      return Array.from(caps);
+    },
+    familyRuntimeLabel(family) {
+      const runtimes = new Set((family.models || []).map(m => m.runtime).filter(Boolean));
+      return runtimes.size === 1 ? Array.from(runtimes)[0] : "Multiple pipelines";
+    },
+    familyMemoryLabel(family) {
+      const floors = (family.models || []).map(m => Number(m.min_unified_memory_gb) || 0);
+      return floors.length ? `from ${Math.min(...floors)} GB RAM` : "RAM varies";
+    },
+    familyDurationLabel(family) {
+      const limits = (family.models || []).map(m => Number(m.max_duration_seconds) || 0);
+      const max = limits.length ? Math.max(...limits) : 0;
+      return max >= 60 ? `up to ${Math.round(max / 60)} min` : `up to ${max}s`;
+    },
+    familyCachedCount(family) {
+      return (family.models || []).filter(m => m.cache?.state === "cached").length;
+    },
+    isRecommendedFamily(family) {
+      return !!this.bestPicks[0]
+        && (family.models || []).some(m => m.repo === this.bestPicks[0].model.repo);
+    },
+    familyTone(family) {
+      const caps = this.familyCapabilities(family);
+      if (caps.includes("vocal")) return "tone-vocal";
+      if (caps.includes("sound-effects") && !caps.includes("text-to-music")) return "tone-sfx";
+      if (family.id === "stable-audio" || family.id === "audioldm2") return "tone-diffusion";
+      if (family.id === "riffusion") return "tone-experimental";
+      return "tone-music";
     },
     get hasActiveFilters() {
       const f = this.modelFilters;
@@ -456,11 +518,9 @@ function studio() {
     },
     toggleMlxFilter() {
       this.modelFilters.mlxOnly = !this.modelFilters.mlxOnly;
-      this._persistFilterPref("mlxOnly", this.modelFilters.mlxOnly);
     },
     toggleFitsMyMacFilter() {
       this.modelFilters.fitsMyMac = !this.modelFilters.fitsMyMac;
-      this._persistFilterPref("fitsMyMac", this.modelFilters.fitsMyMac);
     },
     /** Helper: write a filter preference to localStorage. App-namespaced. */
     _persistFilterPref(name, value) {
@@ -468,24 +528,22 @@ function studio() {
         localStorage.setItem(`musicstudio.modelFilters.${name}`, String(value));
       } catch {}
     },
-    /** Restore saved preferences OR set defaults. mlxOnly stays FALSE here
-     *  because the music catalog currently has 0 MLX models — auto-enabling
-     *  would show "0 of 13" which is broken UX. If MLX music models ever get
-     *  added, the same condition that shows the chip will also enable the
-     *  default. Same code, app-agnostic behavior. */
+    /** Format/fit filters are intentionally session-only. Opening Models must
+     *  never silently hide most of the catalog because of an old preference. */
     _initFilterPreferences() {
       try {
-        const savedMlx = localStorage.getItem("musicstudio.modelFilters.mlxOnly");
-        if (savedMlx !== null) {
-          this.modelFilters.mlxOnly = savedMlx === "true";
-        } else if (this.models.some(m => m.apple_optimized)) {
-          this.modelFilters.mlxOnly = true;
-        }
-        const savedFit = localStorage.getItem("musicstudio.modelFilters.fitsMyMac");
-        if (savedFit !== null) {
-          this.modelFilters.fitsMyMac = savedFit === "true";
-        }
+        this.modelFilters.mlxOnly = false;
+        this.modelFilters.fitsMyMac = false;
+        localStorage.removeItem("musicstudio.modelFilters.mlxOnly");
+        localStorage.removeItem("musicstudio.modelFilters.fitsMyMac");
       } catch {}
+    },
+    _initFamilyLibrary() {
+      if (this.modelFilters.openFamilies.size > 0) return;
+      const cached = this.models.find(m => m.cache?.state === "cached");
+      const fitting = this.models.find(m => this.fitFor(m.min_unified_memory_gb).state !== "risky");
+      const first = cached || fitting || this.models[0];
+      this.modelFilters.openFamilies = new Set(first ? [first.family] : []);
     },
 
     // ──────── per-model gen-state persistence ────────
@@ -572,15 +630,19 @@ function studio() {
     collapseAllVisible() {
       this.modelFilters.expandedRepos = new Set();
     },
-    toggleFamilyCollapsed(familyId) {
-      const s = this.modelFilters.collapsedFamilies;
+    toggleFamilyOpen(familyId) {
+      const s = this.modelFilters.openFamilies;
       if (s.has(familyId)) s.delete(familyId); else s.add(familyId);
-      this.modelFilters.collapsedFamilies = new Set(s);
+      this.modelFilters.openFamilies = new Set(s);
     },
     isFamilyFiltered(familyId)   { return this.modelFilters.families.has(familyId); },
     isStatusFiltered(status)     { return this.modelFilters.statuses.has(status); },
     isCapFiltered(cap)           { return this.modelFilters.capabilities.has(cap); },
-    isFamilyCollapsed(familyId)  { return this.modelFilters.collapsedFamilies.has(familyId); },
+    isFamilyOpen(familyId) {
+      return this.modelFilters.openFamilies.has(familyId)
+        || !!this.modelFilters.search.trim()
+        || this.modelFilters.families.has(familyId);
+    },
     clearAllFilters() {
       this.modelFilters.search = "";
       this.modelFilters.families = new Set();
@@ -1725,6 +1787,12 @@ function studio() {
       return gb.toFixed(1) + " GB";
     },
 
+    formatClipDuration(seconds) {
+      const value = Number(seconds) || 0;
+      if (value >= 60 && value % 60 === 0) return (value / 60) + " min";
+      return value + " sec";
+    },
+
     cardClass(m) {
       return m.cache.state;
     },
@@ -1766,17 +1834,21 @@ function studio() {
 
     capabilityLabel(c) {
       return {
-        txt2img: "text → image",
-        img2img: "image → image",
-        edit:    "instruction edit",
+        "text-to-music": "Music",
+        "melody-continuation": "Melody",
+        "sound-effects": "Sound effects",
+        vocal: "Vocals",
+        stereo: "Stereo",
       }[c] || c;
     },
 
     capabilityHint(c) {
       return {
-        txt2img: "Generate a brand-new image from a text prompt alone.",
-        img2img: "Start from an input image and regenerate it biased toward your prompt. Composition can drift; great for stylistic variations.",
-        edit:    "Instruction-based editing — keeps the subject and composition intact, applies the change you describe. Best for 'add sunglasses', 'change the season', 'remove the car'.",
+        "text-to-music": "Generate music from a text prompt.",
+        "melody-continuation": "Condition generation on a reference melody.",
+        "sound-effects": "Generate ambience, foley, and non-musical audio.",
+        vocal: "Supports singing or vocal-style output.",
+        stereo: "Produces stereo rather than mono audio.",
       }[c] || "";
     },
 
