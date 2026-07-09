@@ -10,6 +10,22 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.4.0] — 2026-07-09
+
+### Added — dependency lockfiles: fresh installs are now reproducible forever
+
+`requirements.txt` / `requirements-generation.txt` use version **floors** (`>=`), so a fresh install months from now would resolve to whatever PyPI serves that day — one breaking release in any dependency (torch, transformers, …) bricks the app on a new machine while existing installs keep working. Same fix as Chat Studio v1.19.0, Voice Studio v1.8.0, Image Studio v1.18.0.
+
+- **`app/requirements.lock.txt`** — the pinned phase-1 set (36 packages, compiled from the floors constrained to the verified env's installed versions).
+- **`app/requirements-generation.lock.txt`** — the FULL verified env (63 packages incl. the torch/transformers audio stack).
+- `install.js`, `install_generation.js`, and `update.js` now install from the locks. Upgrade flow (edit floors → verify → regenerate both locks → commit) is documented in each lock's header.
+
+Verified: both locks resolve all-satisfied against the live env (36 pkgs / 15 ms and 63 pkgs / 14 ms); all three launcher scripts pass `node --check`; python was already pinned (`python=3.12`).
+
+### Notes
+
+- MINOR bump (1.3.3 → 1.4.0) — install-pipeline change, no package versions changed (locks pin exactly what's installed and verified).
+
 ## [1.3.3] — 2026-07-08
 
 ### Fixed — Start now refuses to compete with startup service mode
