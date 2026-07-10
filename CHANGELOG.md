@@ -10,6 +10,24 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.4.5] — 2026-07-10
+
+### Changed — Generate opens with a focused music workspace overview
+
+The Generate tab now establishes the active model, clip length, and compute target
+before the detailed controls. This makes the first screen easier to scan and gives the
+music workflow the same polished hierarchy as the sibling Studio apps, with a refined
+header icon and active-tab treatment.
+
+### Verification
+
+- Validated Alpine expressions, JavaScript syntax, HTML parsing, responsive CSS, and
+  launcher URL capture without installing the optional multi-gigabyte generation stack.
+- Generation settings, catalog behavior, downloads, imports, engine installation, and
+  API routes were checked and deliberately left unchanged.
+
+---
+
 ## [1.4.4] — 2026-07-10
 
 ### Changed — Version now shown as a badge in the top-right header (consistent across all sibling apps)

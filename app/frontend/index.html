@@ -48,13 +48,27 @@
 
   <!-- ─────────── GENERATE (Phase 2) ─────────── -->
   <main x-show="tab==='generate'" class="page generate-page">
-    <section class="page-head">
-      <h1>Generate Music</h1>
-      <p class="muted">
-        Text prompt → audio clip. MusicGen and Stable Audio Open ship in v1;
-        more model families roll out in future passes.
-      </p>
-    </section>
+    <header class="workspace-intro">
+      <div class="workspace-copy">
+        <span class="workspace-kicker">Music workspace</span>
+        <h1>Generate music</h1>
+        <p>Set the musical direction, choose an engine, and shape clip length and variation from one focused workspace.</p>
+      </div>
+      <div class="workspace-meta" aria-label="Current music workspace status">
+        <div class="workspace-stat">
+          <span>Model</span>
+          <strong x-text="selectedModel?.label || (cachedModels.length ? 'Choose a model' : 'No model cached')"></strong>
+        </div>
+        <div class="workspace-stat duration-stat">
+          <span>Length</span>
+          <strong x-text="gen.duration + ' seconds'"></strong>
+        </div>
+        <div class="workspace-stat">
+          <span>Compute</span>
+          <strong x-text="gen.device || system.chip || 'Apple Silicon'"></strong>
+        </div>
+      </div>
+    </header>
 
     <!-- Engine not installed -->
     <div class="banner warn" x-show="!gen.available" x-cloak>
