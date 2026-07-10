@@ -10,6 +10,16 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.4.7] — 2026-07-10
+
+### Fixed — download ETA settle-guard and duration rollup (catalog audited, already accurate)
+
+**Absurd download ETA (`downloads.py`).** Same suite-wide fix: the speed EMA's first near-zero sample (taken before real bytes land) produced ETAs like "99679m 03s" seconds after clicking Download. `eta_seconds` is now suppressed until the job has ≥3 s of runtime so the rate settles first.
+
+**Unreadable long durations (`app.js`).** `formatDuration()` gained hour/day rollup (`Xh YYm` / `Xd YYh`) instead of overflowing to `734m 12s`.
+
+**Catalog audited — no changes needed.** As part of a suite-wide size/memory audit, every Music Studio entry was cross-checked against real Hugging Face download sizes (with `ignore_patterns` applied). All 18 were already accurate; no size or memory-floor corrections were required. `py_compile` clean.
+
 ## [1.4.6] — 2026-07-10
 
 ### Fixed — API and import flows now use music models and WAV output
