@@ -10,6 +10,24 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.4.6] — 2026-07-10
+
+### Fixed — API and import flows now use music models and WAV output
+
+Copied Image Studio defaults remained across the API tab, import hints, backend import
+errors, and the fallback download filename. They pointed at FLUX, called `txt2img`, and
+downloaded PNG files, so the generated examples could not work. Music Studio now uses
+MusicGen, `txt2music`, duration/audio parameters, and WAV routes throughout.
+
+### Verification
+
+- Cross-checked request fields and routes against `backend/main.py`, compiled the changed
+  Python module, validated JavaScript and HTML, and rendered the API/settings states.
+- Duration and download-size formatting were checked and remain intentionally decimal;
+  generation engines, model catalog entries, and download behavior are unchanged.
+
+---
+
 ## [1.4.5] — 2026-07-10
 
 ### Changed — Generate opens with a focused music workspace overview

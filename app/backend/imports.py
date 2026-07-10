@@ -5,7 +5,7 @@ Two transfer modes:
 
 - **link** (default): create a symlink under HF_HOME/hub pointing at the
   source. Instant, zero copy — but breaks if the source is later deleted.
-  Best when you want to keep MFLUX-WEBUI installed alongside.
+  Best when you want to keep another music app installed alongside.
 
 - **move**: physically relocate the folder into HF_HOME/hub via
   `shutil.move`. Same filesystem = instant inode rename, cross-filesystem =
@@ -43,7 +43,7 @@ class ImportCandidate:
 
 
 def _parse_hf_folder_name(name: str) -> Optional[str]:
-    """'models--black-forest-labs--FLUX.1-schnell' -> 'black-forest-labs/FLUX.1-schnell'."""
+    """'models--facebook--musicgen-small' -> 'facebook/musicgen-small'."""
     if not name.startswith("models--"):
         return None
     rest = name[len("models--"):]
@@ -145,7 +145,7 @@ def import_path(source_path: str, repo: Optional[str] = None, mode: str = "link"
                 "ok": False,
                 "error": (
                     f"Could not infer repo from folder name '{src.name}'. "
-                    "Pass the repo explicitly (e.g. 'black-forest-labs/FLUX.1-schnell')."
+                    "Pass the repo explicitly (e.g. 'facebook/musicgen-small')."
                 ),
             }
 
