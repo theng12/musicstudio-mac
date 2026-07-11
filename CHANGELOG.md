@@ -10,6 +10,24 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.5.0] — 2026-07-10
+
+### Added — Audio-generator overhaul: live feedback, per-track actions, disk management
+
+Carries the Voice Studio generator improvements to Music Studio (frontend live on reload; new endpoints activate after one **Update** — no new Python deps):
+
+- **Live feedback** — fixed the "Generating… undefined/undefined" progress label (now real % + elapsed); the queue panel is sticky with a live progress bar on the running job.
+- **Per-track actions** — each result now has **📂 Reveal** and two-click **🗑 Delete** (removes the track and its WAV) alongside Reuse/Download. *(Backend: `DELETE /api/generate/history/{id}`.)*
+- **Disk management** — footer showing track count + disk used, with one-click prune ("keep newest 50" / "delete > 30 days"). *(Backend: `GET /api/output/stats`, `POST /api/output/prune`.)*
+- **Auto-play** the newest result when a generation finishes; **friendlier empty state**.
+
+### Fixed — Two native `confirm()` dialogs replaced with a webview-safe modal
+Remove-token and Import-move used `window.confirm()`, which Pinokio's embedded webview silently blocks. Both now use an in-app confirm modal.
+
+### Notes
+- MINOR bump (1.4.8 → 1.5.0). Frontend live on reload; endpoints need one **Update** (restart) — UI degrades gracefully until then.
+
+---
 ## [1.4.8] — 2026-07-10
 
 ### Added — "Open outputs folder" button (+ Clear-history fix)

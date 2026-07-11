@@ -418,8 +418,12 @@
                   <div class="queue-row-tags muted small">
                     <span x-text="historyModelLabel(job)"></span>
                     <span x-show="historyParamsLabel(job)" x-text="' · ' + historyParamsLabel(job)"></span>
-                    <span x-show="job.state === 'running'" class="queue-running-label"> · running…</span>
                     <span x-show="job.state === 'queued'" class="queue-queued-label"> · waiting</span>
+                  </div>
+                  <!-- Live progress for the running job (bar + % + elapsed). -->
+                  <div class="queue-progress" x-show="job.state === 'running'">
+                    <div class="queue-progress-bar"><i :style="`width:${Math.max(3, Math.round((job.progress||0)*100))}%`"></i></div>
+                    <span class="queue-progress-label" x-text="gen.busyLabel || 'Generating…'"></span>
                   </div>
                 </div>
                 <button class="btn ghost small" @click="cancelPending(job)"
@@ -489,11 +493,37 @@
               Recent
               <span class="muted small" x-text="'(' + historyJobs.length + ')'"></span>
             </h3>
-            <button class="link small" @click="openOutputsFolder()" title="Open the folder with every generated file in Finder">📂 Outputs folder</button>
-            <button class="link small" :style="gen.clearArmed ? 'color:#f3b562;font-weight:600' : ''" @click="clearHistory()" title="Remove all past jobs from this list">
-              <span x-show="!gen.clearArmed">Clear history</span><span x-show="gen.clearArmed" x-cloak>Click again</span>
-            </button>
+            <div class="recent-head-actions">
+              <label class="autoplay-toggle muted small" title="Play the audio automatically when a generation finishes">
+                <input type="checkbox" x-model="gen.autoPlay"> Auto-play
+              </label>
+              <button class="link small" @click="openOutputsFolder()" title="Open the folder with every generated file in Finder">📂 Outputs folder</button>
+              <button class="link small" :style="gen.clearArmed ? 'color:#f3b562;font-weight:600' : ''" @click="clearHistory()" title="Remove all past jobs from this list">
+                <span x-show="!gen.clearArmed">Clear history</span><span x-show="gen.clearArmed" x-cloak>Click again</span>
+              </button>
+            </div>
           </div>
+
+          <!-- Disk usage + prune (needs the latest backend; hidden until it responds) -->
+          <div class="output-disk" x-show="outputStats.loaded && outputStats.count > 0" x-cloak>
+            <span class="muted small">
+              💾 <span x-text="outputStats.count"></span> file<span x-show="outputStats.count !== 1">s</span>
+              · <span x-text="outputSizeLabel"></span> on disk
+            </span>
+            <span class="output-disk-actions" x-show="outputStats.count > 50">
+              <button class="link small" :style="gen.pruneArmed === 'keep50' ? 'color:#f3b562;font-weight:600' : ''" @click="pruneOutputs('keep50')"
+                      title="Delete all but the newest 50 generated files">
+                <span x-show="gen.pruneArmed !== 'keep50'">🧹 Keep newest 50</span>
+                <span x-show="gen.pruneArmed === 'keep50'" x-cloak>Click again</span>
+              </button>
+              <button class="link small" :style="gen.pruneArmed === 'old30' ? 'color:#f3b562;font-weight:600' : ''" @click="pruneOutputs('old30')"
+                      title="Delete generated files older than 30 days">
+                <span x-show="gen.pruneArmed !== 'old30'">Delete &gt; 30 days old</span>
+                <span x-show="gen.pruneArmed === 'old30'" x-cloak>Click again</span>
+              </button>
+            </span>
+          </div>
+
           <div class="audio-recent">
             <template x-for="j in pagedHistoryJobs" :key="j.id">
               <div class="audio-recent-row"
@@ -513,8 +543,17 @@
                 <small class="muted">
                   <span x-show="j.duration_seconds != null" x-text="'⏱ ' + formatDuration(j.duration_seconds)"></span>
                 </small>
-                <button class="link small" x-show="j.state==='done' && j.params"
-                        @click.stop="reuseParams(j)" title="Reuse these settings">🔄</button>
+                <div class="audio-recent-actions">
+                  <button class="link small" x-show="j.output_path" @click.stop="revealInFolder(j.output_path)"
+                          title="Show this file in Finder">📂</button>
+                  <button class="link small" x-show="j.state==='done' && j.params"
+                          @click.stop="reuseParams(j)" title="Reuse these settings">🔄</button>
+                  <button class="link small" :style="gen.deleteArmed === j.id ? 'color:#f3b562;font-weight:600' : ''"
+                          @click.stop="deleteGeneration(j)" title="Delete this generation and its file">
+                    <span x-show="gen.deleteArmed !== j.id">🗑</span>
+                    <span x-show="gen.deleteArmed === j.id" x-cloak>Click again</span>
+                  </button>
+                </div>
               </div>
             </template>
           </div>
@@ -532,6 +571,13 @@
                     @click="historyNextPage()">Next ›</button>
           </div>
         </div>
+
+        <!-- Empty state — no generations yet (and a model is ready) -->
+        <section class="audio-empty"
+                 x-show="gen.jobs.filter(j => ['done','error','cancelled'].includes(j.state)).length === 0 && !gen.busy && gen.available && cachedModels.length > 0"
+                 x-cloak>
+          <p class="muted">No generations yet — enter a prompt above and hit <strong>🎵 Generate</strong>. Your results collect here with a player, download, reveal, reuse, and delete.</p>
+        </section>
       </div>
     </div>
   </main>
@@ -1295,6 +1341,22 @@
         </div>
       </div>
     </template>
+  </div>
+
+  <!-- ─────────── IN-APP CONFIRM MODAL (webview-safe replacement for confirm()) ─────────── -->
+  <div class="modal-backdrop" x-show="confirmDialog" x-cloak @click.self="_resolveConfirm(false)">
+    <div class="modal" x-show="confirmDialog">
+      <template x-if="confirmDialog">
+        <div>
+          <h2 x-text="confirmDialog.title"></h2>
+          <p class="muted" style="white-space:pre-line" x-text="confirmDialog.body"></p>
+          <div class="modal-actions">
+            <button class="ghost" @click="_resolveConfirm(false)">Cancel</button>
+            <button class="primary" @click="_resolveConfirm(true)" x-text="confirmDialog.confirmLabel"></button>
+          </div>
+        </div>
+      </template>
+    </div>
   </div>
 
   <!-- ─────────── DOWNLOAD CONFIRM MODAL ─────────── -->
