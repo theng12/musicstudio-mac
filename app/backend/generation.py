@@ -120,6 +120,9 @@ _ENGINE_REQUIREMENTS = {
     "riffusion":    ["torch", "diffusers", "soundfile"],
     "bark":         ["torch", "transformers", "soundfile"],
     "ace-step":     ["torch", "transformers", "soundfile"],  # also needs `ace-step` lib
+    "audioldm2":    ["torch", "diffusers", "soundfile"],
+    "magnet":       ["torch", "soundfile"],  # also needs `audiocraft`
+    "yue":          ["torch", "transformers", "soundfile"],
 }
 
 # Which engines have a fully-working worker. Keep in sync with the branches in
@@ -320,6 +323,10 @@ class GenerationJob:
 # ───────────── manager ─────────────
 
 class GenerationManager:
+    @staticmethod
+    def is_family_wired(family: str) -> bool:
+        return family in _WIRED_FAMILIES
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._jobs: dict[str, GenerationJob] = {}
@@ -501,6 +508,10 @@ class GenerationManager:
                     job.error = f"{type(e).__name__}: {e}"
                     print(f"[gen] error {job.job_id}: {job.error}", file=sys.stderr, flush=True)
                     traceback.print_exc()
+                try:
+                    output_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
             finally:
                 job.finished_at = time.time()
                 self._persist()
@@ -550,6 +561,18 @@ class GenerationManager:
             raise NotImplementedError(
                 "ACE-Step pipeline is in the roadmap (needs the `ace-step` library). "
                 "For now use MusicGen or Stable Audio."
+            )
+        elif family == "audioldm2":
+            raise NotImplementedError(
+                "AudioLDM 2 is in the roadmap. For now use MusicGen or Stable Audio."
+            )
+        elif family == "magnet":
+            raise NotImplementedError(
+                "MAGNeT needs Meta's audiocraft runtime and is not wired yet. Use MusicGen for now."
+            )
+        elif family == "yue":
+            raise NotImplementedError(
+                "YuE full-song generation is not wired yet. Use MusicGen, Stable Audio, or Bark."
             )
         else:
             raise NotImplementedError(f"No worker implemented for family '{family}'.")

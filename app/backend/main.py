@@ -29,7 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import cache, catalog, settings as app_settings
 from .generation import (
@@ -125,20 +125,20 @@ class TokenTestBody(BaseModel):
 
 
 class Txt2MusicBody(BaseModel):
-    repo: str
-    prompt: str
-    negative_prompt: str = ""
-    duration: float = 10.0           # seconds (per clip when chain_count > 1)
-    guidance: float = 3.0
-    temperature: float = 1.0
-    steps: int = 100                 # Stable Audio only; ignored by MusicGen
-    seed: Optional[int] = None
+    repo: str = Field(max_length=500)
+    prompt: str = Field(max_length=20000)
+    negative_prompt: str = Field("", max_length=20000)
+    duration: float = Field(10.0, ge=0.5, le=120.0)
+    guidance: float = Field(3.0, ge=0.0, le=30.0)
+    temperature: float = Field(1.0, gt=0.0, le=5.0)
+    steps: int = Field(100, ge=1, le=500)
+    seed: Optional[int] = Field(None, ge=-1, le=4294967295)
     # ── Chain / concat for longer outputs ──
     # When chain_count > 1 the backend generates N clips (each with seed_base+i)
     # and concatenates them with an optional crossfade. Final WAV duration is
     # roughly chain_count * duration − (chain_count − 1) * crossfade_seconds.
-    chain_count: int = 1
-    crossfade_seconds: float = 0.0
+    chain_count: int = Field(1, ge=1, le=8)
+    crossfade_seconds: float = Field(0.0, ge=0.0, le=30.0)
     # ── Bark-specific knobs ──
     bark_voice_preset: Optional[str] = None  # e.g. "v2/en_speaker_6"; None = random
 
@@ -512,6 +512,11 @@ def start_txt2music(body: Txt2MusicBody) -> dict:
         raise HTTPException(
             status_code=400,
             detail=f"Model {body.repo} doesn't support text-to-music generation.",
+        )
+    if not gen_manager.is_family_wired(model.family):
+        raise HTTPException(
+            status_code=409,
+            detail=f"The {model.family} generation worker is still on the roadmap. Pick MusicGen, Stable Audio, or Bark.",
         )
     if cache.cache_state(body.repo) != "cached":
         raise HTTPException(

@@ -10,6 +10,33 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.5.1] — 2026-07-12
+
+### Fixed — truthful engine readiness and bounded generation
+
+- AudioLDM2, MAGNeT, and YuE are now represented in diagnostics and have explicit
+  roadmap dispatch branches. Cached roadmap models no longer default to “ready,” and
+  the API rejects them before creating a job. The strict generation truth audit is clean.
+- Generate now requires an actual selected model and explains whether the missing input
+  is a model, an engine worker, or a prompt. Failed jobs remove partial WAV files.
+- Music-generation inputs now have explicit prompt, duration, chain, crossfade, sampling,
+  and seed limits to prevent runaway work or memory use from malformed API requests.
+- README status/API documentation now reflects the working MusicGen, Stable Audio, and
+  Bark generation features instead of describing them as a future Phase 2.
+
+### Security
+
+- Hugging Face token storage is forced to owner-only (`0600`) permissions.
+- Remote update-version metadata is rendered with `textContent`.
+- FastAPI, Starlette, and python-multipart were raised to patched versions; an isolated
+  install of the base lock reports no known vulnerabilities.
+
+### Verification
+
+- Python/JavaScript/HTML checks, request-boundary tests, the strict truth audit, an
+  isolated dependency audit, and a stopped-app browser smoke test all pass. LAN
+  bind/CORS remain unchanged as part of the documented server-mode contract.
+
 ## [1.5.0] — 2026-07-10
 
 ### Added — Audio-generator overhaul: live feedback, per-track actions, disk management

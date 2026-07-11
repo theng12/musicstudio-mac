@@ -718,6 +718,7 @@ function studio() {
     get canSubmit() {
       if (!this.gen.available) return false;
       if (this.cachedModels.length === 0) return false;
+      if (!this.gen.repo) return false;
       if (!this.gen.prompt.trim()) return false;
       if (this.gen.submitting) return false;
       if (this.gen.repo && !this.isModelReady(this.gen.repo)) return false;

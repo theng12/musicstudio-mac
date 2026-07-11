@@ -4,13 +4,13 @@ Apple Silicon music generation studio — a sibling app to ImageStudio (Mac).
 Catalog-driven model management for MusicGen, Stable Audio Open, AudioGen,
 Riffusion, Bark, and ACE-Step.
 
-> **Phase 1 status:** catalog browsing, downloads with resume, weight imports,
-> HF token settings, network-access panel — all live. **Music generation
-> lands in Phase 2.**
+Catalog browsing, resumable downloads, imports, settings, and music generation
+are live. MusicGen, Stable Audio Open 1.0, and Bark have working generation
+workers; other catalog families are clearly marked as roadmap engines.
 
 ## What it does today
 
-- Browse a catalog of 13 open-source music / audio models with capability
+- Browse a catalog of 18 open-source music / audio models with capability
   chips and "Best for:" descriptions per entry
 - Download models with live speed + ETA, resume on interrupt, parallel jobs
 - Import weights you already have via symlink or move
@@ -38,16 +38,15 @@ respectable performance on M-series chips.
   (Meta's MusicGen library) because it pins old `torch==2.1.0`.
   We use `transformers.MusicgenForConditionalGeneration` directly instead.
 
-## Phase 2 — what's coming
+## Generation and roadmap
 
-- Text → Music generation via `transformers` (MusicGen) + `diffusers`
-  (Stable Audio Open, Riffusion)
+- Text → music generation via `transformers` (MusicGen and Bark) and
+  `diffusers` (Stable Audio Open 1.0)
+- Live queue/progress, chained clips with crossfade, reusable parameters,
+  auto-play, WAV downloads, history, and output pruning
+- Roadmap workers: AudioGen, MAGNeT, Riffusion, ACE-Step, AudioLDM 2, and YuE
 - Melody continuation tab (drop / paste / pick reference audio, use
   `MusicgenMelodyForConditionalGeneration`)
-- Sound effects sub-mode for AudioGen models
-- Audio player widget in the output area (HTML5 `<audio>`)
-- Duration slider replacing aspect ratio
-- Same recent grid + reuse-params + batch + toasts as ImageStudio
 
 ## Versioning
 
@@ -100,11 +99,16 @@ GET    /api/settings
 POST   /api/settings                  # { hf_token? }
 POST   /api/settings/test-hf-token
 GET    /api/connectivity
-GET    /api/generate/availability     # currently { available: false }
+GET    /api/generate/availability
+GET    /api/generate/diagnostics
+POST   /api/generate/txt2music
+GET    /api/generate/jobs
+GET    /api/generate/jobs/{id}
+GET    /api/generate/jobs/{id}/audio
+GET    /api/generate/stream
 ```
 
-Phase 2 endpoints (coming): `/api/generate/txt2music`, `/api/generate/melody`,
-`/api/generate/sfx`, `/api/generate/jobs/*`, `/api/generate/stream`.
+Roadmap endpoints: `/api/generate/melody` and `/api/generate/sfx`.
 
 ## Run as an always-on server (auto-start + self-healing)
 
