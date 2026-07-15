@@ -10,6 +10,24 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.7.0] — 2026-07-15
+
+### Added — safe optional automatic updates
+
+- Added Off, Notify only, and Automatic modes in Settings, with daily or weekly
+  schedules, visible status, manual checks, retry, and “Update after current work.”
+- Updates defer while music generations or model downloads are active. They
+  verify the fixed GitHub remote, clean `main` branch, fast-forward history,
+  disk space, dependencies, imports, health, and the exact running version.
+- Added a short-lived launchd scheduler, lock protection, retry/backoff,
+  rotating redacted logs, notifications, restart recovery, and bounded rollback.
+  The feature remains Off until explicitly enabled.
+
+### Verification
+
+- Added focused updater/readiness tests and verified scheduler installation and
+  removal, APIs, launchers, dependencies, truth audit, and responsive Settings UI.
+
 ## [1.6.1] — 2026-07-13
 
 ### Fixed — saved fleet credentials apply without restarting Music Studio

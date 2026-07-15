@@ -48,6 +48,20 @@ respectable performance on M-series chips.
 - Melody continuation tab (drop / paste / pick reference audio, use
   `MusicgenMelodyForConditionalGeneration`)
 
+## Optional automatic updates
+
+Settings includes a safe automatic updater that defaults to **Off**. It can
+notify you or install verified updates daily or weekly, always waiting for music
+generations and model downloads to finish. “Update after current work” retries
+until the app is idle. Every update checks the expected repository, clean
+fast-forward history, disk space, dependencies, imports, health, and the running
+version; failed post-update verification triggers a bounded rollback.
+
+Use `GET /api/auto-update/status` and `GET /api/auto-update/readiness` for
+monitoring. Configuration, checks, updates, and retry use POST endpoints under
+`/api/auto-update/`. Logs live in `logs/auto_update/`, and turning the feature
+Off unloads its schedule immediately.
+
 ## Versioning
 
 Music Studio KH uses [Semantic Versioning](https://semver.org/) with this project-specific interpretation:
