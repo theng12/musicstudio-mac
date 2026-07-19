@@ -45,8 +45,16 @@ respectable performance on M-series chips.
 - Live queue/progress, chained clips with crossfade, reusable parameters,
   auto-play, WAV downloads, history, and output pruning
 - Roadmap workers: AudioGen, MAGNeT, Riffusion, ACE-Step, AudioLDM 2, and YuE
-- Melody continuation tab (drop / paste / pick reference audio, use
+ - Melody continuation tab (drop / paste / pick reference audio, use
   `MusicgenMelodyForConditionalGeneration`)
+
+## Sidebar maintenance actions
+
+- **Install/Reinstall Generation** stays available while Music Studio is
+  stopped, running normally, or managed by its startup service. The existing
+  installer verifies the heavy audio stack and refreshes the active server mode.
+- **What's New · Updates & Details** is visible in every launcher state and
+  opens the installed `CHANGELOG.md` in Pinokio's rendered Markdown view.
 
 ## Optional automatic updates
 
