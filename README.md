@@ -70,6 +70,19 @@ monitoring. Configuration, checks, updates, and retry use POST endpoints under
 `/api/auto-update/`. Logs live in `logs/auto_update/`, and turning the feature
 Off unloads its schedule immediately.
 
+## Local output retention
+
+Completed music files are temporary local backups. Automatic cleanup is enabled
+by default, keeps them for three days, and enforces an 80 GB hard cap by deleting
+the oldest completed WAVs first. Active jobs, models, imports, uploads,
+credentials, and settings are excluded. Controls are available on Generate.
+
+```text
+GET  /api/storage-policy
+PUT  /api/storage-policy          # { enabled, retention_days, max_gb }
+POST /api/storage-policy/cleanup  # optional { target_bytes }
+```
+
 ## Versioning
 
 Music Studio KH uses [Semantic Versioning](https://semver.org/) with this project-specific interpretation:

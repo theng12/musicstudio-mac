@@ -10,6 +10,25 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.7.3] — 2026-07-19
+
+### Added — automatic local output protection
+
+- Added enabled-by-default three-day retention and an 80 GB hard cap for
+  generated WAV backups, enforced hourly with oldest-first eviction.
+- Added modern in-app usage, retention, capacity, Save policy, and Clean now
+  controls backed by the authenticated Studio Hub fleet API.
+- Cleanup is restricted to completed WAVs in `app/output`; active jobs, model
+  caches, imports, uploads, settings, and credentials are never eligible.
+
+### Verification
+
+- Added age, hard-cap, active-job, API, and scope-safety regression tests. The
+  full test suite, Python compilation, and JavaScript syntax checks pass.
+  Launchers and generation dependencies were left unchanged.
+
+---
+
 ## [1.7.2] — 2026-07-19
 
 ### Improved — persistent generation install and release details
