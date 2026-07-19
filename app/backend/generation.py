@@ -245,6 +245,11 @@ def _release_device_memory(device: str) -> None:
     except Exception:
         pass
     try:
+        import mlx.core as mx
+        mx.clear_cache()
+    except Exception:
+        pass
+    try:
         import torch
         if device == "mps":
             torch.mps.empty_cache()
@@ -330,11 +335,17 @@ class GenerationManager:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._jobs: dict[str, GenerationJob] = {}
+        self._musicgen_model = None
+        self._musicgen_processor = None
+        self._musicgen_repo: Optional[str] = None
+        self._stable_audio_pipe = None
+        self._stable_audio_repo: Optional[str] = None
         # Bark model cache — same lazy-load + repo-switch eviction pattern as
         # VoiceStudio so unified memory only holds one Bark model at a time.
         self._bark_model = None
         self._bark_processor = None
         self._bark_model_repo: Optional[str] = None
+        self._last_model_activity_at: Optional[float] = None
         self._load_history()
 
     def is_available(self) -> bool:
@@ -345,6 +356,94 @@ class GenerationManager:
 
     def get(self, job_id: str) -> Optional[GenerationJob]:
         return self._jobs.get(job_id)
+
+    def has_active_jobs(self) -> bool:
+        return any(job.state in ("queued", "running", "cancelling") for job in self._jobs.values())
+
+    def loaded_model_key(self) -> Optional[tuple[str, str]]:
+        if self._musicgen_model is not None and self._musicgen_repo:
+            return (self._musicgen_repo, "musicgen")
+        if self._stable_audio_pipe is not None and self._stable_audio_repo:
+            return (self._stable_audio_repo, "stable-audio")
+        if self._bark_model is not None and self._bark_model_repo:
+            return (self._bark_model_repo, "bark")
+        return None
+
+    def has_loaded_model(self) -> bool:
+        return self.loaded_model_key() is not None
+
+    def last_activity_at(self) -> Optional[float]:
+        return self._last_model_activity_at
+
+    def idle_seconds(self, now: Optional[float] = None) -> Optional[float]:
+        if not self.has_loaded_model() or self._last_model_activity_at is None:
+            return None
+        return max(0.0, (time.time() if now is None else float(now)) - self._last_model_activity_at)
+
+    def _release_cached_models(self, reason: str) -> dict:
+        """Drop every in-process model reference. Caller must hold `_GEN_LOCK`."""
+        key = self.loaded_model_key()
+        actions: list[str] = []
+        for attr in ("_musicgen_model", "_musicgen_processor", "_stable_audio_pipe",
+                     "_bark_model", "_bark_processor"):
+            value = getattr(self, attr, None)
+            if value is not None:
+                setattr(self, attr, None)
+                actions.append(f"cleared {attr.removeprefix('_')}")
+            value = None
+        self._musicgen_repo = None
+        self._stable_audio_repo = None
+        self._bark_model_repo = None
+        _release_device_memory(_detect_device())
+        actions.append("cleared Python, PyTorch, MLX and Metal allocator caches")
+        return {
+            "released": key is not None,
+            "model": list(key) if key else None,
+            "reason": reason,
+            "actions": actions,
+        }
+
+    def release_memory(self, reason: str = "manual") -> dict:
+        if self.has_active_jobs():
+            raise RuntimeError("music generation is queued or running")
+        with _GEN_LOCK:
+            if self.has_active_jobs():
+                raise RuntimeError("music generation started before memory could be released")
+            return self._release_cached_models(reason)
+
+    def _prepare_model_cache(self, repo: str, family: str) -> None:
+        current = self.loaded_model_key()
+        if current is not None and current != (repo, family):
+            print(f"[gen] switching model; evicting {current[0]} ({current[1]})", flush=True)
+            self._release_cached_models("model-switch")
+
+    def _musicgen_get_model(self, repo: str, device: str):
+        self._prepare_model_cache(repo, "musicgen")
+        if self._musicgen_model is not None and self._musicgen_repo == repo:
+            return self._musicgen_model, self._musicgen_processor
+        from transformers import AutoProcessor, MusicgenForConditionalGeneration
+        print(f"[gen] loading MusicGen on {device}: {repo}", flush=True)
+        processor = AutoProcessor.from_pretrained(repo)
+        model = MusicgenForConditionalGeneration.from_pretrained(repo).to(device)
+        model.eval()
+        self._musicgen_model = model
+        self._musicgen_processor = processor
+        self._musicgen_repo = repo
+        self._last_model_activity_at = time.time()
+        return model, processor
+
+    def _stable_audio_get_pipe(self, repo: str, device: str):
+        self._prepare_model_cache(repo, "stable-audio")
+        if self._stable_audio_pipe is not None and self._stable_audio_repo == repo:
+            return self._stable_audio_pipe
+        import torch
+        from diffusers import StableAudioPipeline
+        print(f"[gen] loading Stable Audio on {device}: {repo}", flush=True)
+        pipe = StableAudioPipeline.from_pretrained(repo, torch_dtype=torch.float32).to(device)
+        self._stable_audio_pipe = pipe
+        self._stable_audio_repo = repo
+        self._last_model_activity_at = time.time()
+        return pipe
 
     def cancel(self, job_id: str) -> bool:
         """
@@ -480,6 +579,7 @@ class GenerationManager:
 
             job.state = "running"
             job.started_at = time.time()
+            self._last_model_activity_at = job.started_at
             job.progress = 0.05          # move the bar off zero the moment work starts
             print(f"[gen] starting {job.job_id}: {job.params}", flush=True)
 
@@ -514,6 +614,9 @@ class GenerationManager:
                     pass
             finally:
                 job.finished_at = time.time()
+                self._last_model_activity_at = job.finished_at
+                if job.state != "done":
+                    self._release_cached_models("failed-or-cancelled-generation")
                 self._persist()
 
     def _dispatch_txt2music(self, job: GenerationJob, output_path: Path) -> None:
@@ -587,7 +690,6 @@ class GenerationManager:
         ~50 audio tokens per second of output, so duration_s * 50 ≈ max_new_tokens.
         """
         import torch
-        from transformers import AutoProcessor, MusicgenForConditionalGeneration
         # NB: we deliberately use soundfile (libsndfile) for WAV writing instead
         # of torchaudio.save. torchaudio>=2.6 routes save() through torchcodec,
         # which is a separate-channel package that isn't auto-installed and
@@ -597,11 +699,7 @@ class GenerationManager:
 
         params = job.params
         device = _detect_device()
-        print(f"[gen] loading MusicGen on {device}: {model_entry.repo}", flush=True)
-        processor = AutoProcessor.from_pretrained(model_entry.repo)
-        model = MusicgenForConditionalGeneration.from_pretrained(model_entry.repo)
-        model = model.to(device)
-        model.eval()
+        model, processor = self._musicgen_get_model(model_entry.repo, device)
 
         try:
             base_seed = params.get("seed")
@@ -672,15 +770,7 @@ class GenerationManager:
             print(f"[gen] saved {chain_count}-clip WAV ({total_s:.1f}s, crossfade={crossfade_s}s) "
                   f"at {sr} Hz: {output_path}", flush=True)
         finally:
-            # Free MPS memory so the NEXT generation can load its model without
-            # tripping Apple Silicon unified-memory OOM. On CUDA this is also
-            # cheap; on CPU it's a no-op.
-            try:
-                del model
-                del processor
-            except Exception:
-                pass
-            _release_device_memory(device)
+            self._last_model_activity_at = time.time()
 
     # ----- Stable Audio Open -----
 
@@ -692,15 +782,12 @@ class GenerationManager:
         import torch
         # See _generate_musicgen for why we use soundfile instead of torchaudio.save.
         import soundfile as sf
-        from diffusers import StableAudioPipeline
 
         params = job.params
         device = _detect_device()
-        print(f"[gen] loading Stable Audio on {device}: {model_entry.repo}", flush=True)
         # float32 on MPS — float16 is faster but MPS support for sd-style fp16 audio
         # pipelines was flaky as of mid-2025. Keep it safe.
-        pipe = StableAudioPipeline.from_pretrained(model_entry.repo, torch_dtype=torch.float32)
-        pipe = pipe.to(device)
+        pipe = self._stable_audio_get_pipe(model_entry.repo, device)
 
         try:
             base_seed = params.get("seed")
@@ -769,28 +856,14 @@ class GenerationManager:
             print(f"[gen] saved {chain_count}-clip WAV ({total_s:.1f}s, crossfade={crossfade_s}s) "
                   f"at {sr} Hz: {output_path}", flush=True)
         finally:
-            try:
-                del pipe
-            except Exception:
-                pass
-            _release_device_memory(device)
+            self._last_model_activity_at = time.time()
 
     # ----- Bark (Suno via transformers) -----
 
     def _bark_get_model(self, repo: str, device: str):
+        self._prepare_model_cache(repo, "bark")
         if self._bark_model_repo == repo and self._bark_model is not None:
             return self._bark_model, self._bark_processor
-        if self._bark_model is not None:
-            print(f"[gen] evicting cached Bark model ({self._bark_model_repo})", flush=True)
-            try:
-                del self._bark_model
-                del self._bark_processor
-            except Exception:
-                pass
-            self._bark_model = None
-            self._bark_processor = None
-            self._bark_model_repo = None
-            _release_device_memory(device)
 
         from transformers import AutoProcessor, BarkModel
         print(f"[gen] loading Bark from HF hub: {repo} on {device}", flush=True)
@@ -801,6 +874,7 @@ class GenerationManager:
         self._bark_model = model
         self._bark_processor = processor
         self._bark_model_repo = repo
+        self._last_model_activity_at = time.time()
         return model, processor
 
     def _generate_bark(self, job: GenerationJob, model_entry, output_path: Path) -> None:
@@ -871,6 +945,7 @@ class GenerationManager:
 
         sr = int(getattr(getattr(model, "generation_config", None), "sample_rate", 24000) or 24000)
         sf.write(str(output_path), audio_np, sr, format="WAV", subtype="PCM_16")
+        self._last_model_activity_at = time.time()
         print(f"[gen] bark saved WAV at {sr} Hz, {len(audio_np)/sr:.2f}s: {output_path}", flush=True)
 
     # ----- persistence -----

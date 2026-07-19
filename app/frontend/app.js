@@ -156,6 +156,14 @@ function studio() {
       draft:{mode:"off",frequency:"daily",maintenance_hour:5,idle_only:true},
       dirty:false,
     },
+    memoryPolicy: {
+      mode:"performance", default_mode:"performance", idle_seconds:null,
+      loaded_model:null, model_idle_seconds:null, next_release_at:null,
+      last_release_at:null, last_release_reason:null, release_count:0,
+      process_title:"Music Studio Mac", process_title_applied:false,
+      loaded:false, busy:false, message:"", messageKind:"info",
+      draft:{mode:"performance"}, dirty:false,
+    },
 
     // ──────── network/connectivity (where the API can be reached) ────────
     conn: {
@@ -210,6 +218,7 @@ function studio() {
       await this.refreshLoras();
       await this.refreshSettings();
       await this.refreshAutoUpdate(true);
+      await this.refreshMemoryPolicy(true, true);
       // Restore last-used model + per-repo gen settings AFTER catalog +
       // availability are loaded so the cachedModels list is populated when
       // we check whether lastRepo is still valid.
@@ -225,13 +234,14 @@ function studio() {
       this._tickHandle = setInterval(() => { this._nowSec = Math.floor(Date.now() / 1000); }, 1000);
       setInterval(() => {
         if (this.tab === "settings" || ["checking","updating","restarting","deferred"].includes(this.autoUpdate.state)) this.refreshAutoUpdate(true);
+        if (this.tab === "settings") this.refreshMemoryPolicy(true);
       }, 5000);
       // Route via hash so the sidebar buttons in pinokio.js can deep-link.
       const applyHash = () => {
         const h = (location.hash || "").replace(/^#\/?/, "");
         if (["generate", "models", "downloads", "imports", "api", "settings"].includes(h)) this.tab = h;
         if (h === "imports") this.scanImports();
-        if (h === "settings") { this.refreshSettings(); this.refreshAutoUpdate(true); }
+        if (h === "settings") { this.refreshSettings(); this.refreshAutoUpdate(true); this.refreshMemoryPolicy(true); }
       };
       window.addEventListener("hashchange", applyHash);
       applyHash();
@@ -1220,6 +1230,38 @@ function studio() {
         this.autoUpdate.messageKind="success";
       } catch(e) { this.autoUpdate.message=String(e.message||e); this.autoUpdate.messageKind="error"; }
       finally { this.autoUpdate.busy=false; }
+    },
+
+    async refreshMemoryPolicy(silent=false, forceDraft=false) {
+      try {
+        const r=await fetch("/api/memory-policy",{cache:"no-store"});
+        const d=await r.json(); if(!r.ok) throw new Error(d.detail||`HTTP ${r.status}`);
+        const saved=d.mode;
+        Object.assign(this.memoryPolicy,d,{loaded:true});
+        if(forceDraft || !this.memoryPolicy.dirty){this.memoryPolicy.draft={mode:saved};this.memoryPolicy.dirty=false;}
+      } catch(e){if(!silent){this.memoryPolicy.message=String(e.message||e);this.memoryPolicy.messageKind="error";}}
+    },
+    markMemoryPolicyDirty(){this.memoryPolicy.dirty=true;this.memoryPolicy.message="";this.memoryPolicy.messageKind="info";},
+    memoryPolicyTime(value){if(!value)return "Not scheduled";const n=Number(value);const d=new Date(n<1e12?n*1000:n);return Number.isNaN(d.getTime())?"Not scheduled":d.toLocaleString();},
+    memoryModelLabel(){const p=this.memoryPolicy.loaded_model;return Array.isArray(p)&&p.length?String(p[0]).split("/").pop()+" · "+p[1]:"None loaded";},
+    async saveMemoryPolicy(){
+      this.memoryPolicy.busy=true;this.memoryPolicy.message="Saving memory mode…";this.memoryPolicy.messageKind="info";
+      try{
+        const r=await fetch("/api/memory-policy",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(this.memoryPolicy.draft)});
+        const d=await r.json();if(!r.ok)throw new Error(d.detail||`HTTP ${r.status}`);
+        Object.assign(this.memoryPolicy,d,{loaded:true,draft:{mode:d.mode},dirty:false,message:"Memory mode saved.",messageKind:"success"});
+      }catch(e){this.memoryPolicy.message=String(e.message||e);this.memoryPolicy.messageKind="error";}
+      finally{this.memoryPolicy.busy=false;}
+    },
+    async releaseMemory(){
+      this.memoryPolicy.busy=true;this.memoryPolicy.message="Releasing local music memory…";this.memoryPolicy.messageKind="info";
+      try{
+        const r=await fetch("/api/memory/release",{method:"POST"});
+        const d=await r.json();if(!r.ok)throw new Error(d.detail||`HTTP ${r.status}`);
+        Object.assign(this.memoryPolicy,d,{loaded:true,message:d.last_release_details?.released?"Local music model unloaded and accelerator caches cleared.":"Allocator caches cleared; no local model was loaded.",messageKind:"success"});
+        this.pushToast({kind:"success",icon:"✓",title:"Memory released",body:this.memoryPolicy.message});
+      }catch(e){this.memoryPolicy.message=String(e.message||e);this.memoryPolicy.messageKind="error";this.pushToast({kind:"error",icon:"✗",title:"Couldn't release memory",body:this.memoryPolicy.message});}
+      finally{this.memoryPolicy.busy=false;}
     },
 
     async refreshConnectivity() {

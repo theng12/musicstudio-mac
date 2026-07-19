@@ -10,6 +10,26 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.8.0] — 2026-07-20
+
+### Added — opt-in model memory controls
+
+- Added Performance (default), Balanced (10 minutes), Memory Saver (2 minutes),
+  and Immediate model-unload modes. Performance preserves the most recently
+  used MusicGen, Stable Audio, or Bark model for faster repeat generations.
+- Added a manual **Release Memory / Unload Model** action that safely rejects
+  requests while music is queued or generating, then clears Python, PyTorch,
+  MLX, and Metal allocator caches without deleting weights or WAV outputs.
+- Added the friendly **Music Studio Mac** process title for Activity Monitor.
+
+### Verification
+
+- Added policy timing, active-job protection, model-retention, failure cleanup,
+  API, UI, and process-title regression coverage. Full Python, JavaScript,
+  dependency, and responsive WebUI checks pass.
+
+---
+
 ## [1.7.3] — 2026-07-19
 
 ### Added — automatic local output protection

@@ -7,7 +7,7 @@
   <!-- Cache-busters: bump the ?v= string whenever the static assets are updated
        so Pinokio's webview can't keep serving a stale build. The backend also
        sends Cache-Control: no-store for these paths as a belt-and-braces. -->
-  <link rel="stylesheet" href="/assets/style.css?v=family-library-1" />
+  <link rel="stylesheet" href="/assets/style.css?v=memory-controls-1" />
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -18,7 +18,7 @@
        and must load before app.js references it. -->
   <script src="/assets/auth.js?v=fleet-1"></script>
   <script defer src="/assets/prompts.js?v=phase2-queue-1"></script>
-  <script defer src="/assets/app.js?v=family-library-1"></script>
+  <script defer src="/assets/app.js?v=memory-controls-1"></script>
   <script defer src="/assets/alpine.min.js?v=phase2-queue-1"></script>
 </head>
 <body x-data="studio()" x-init="init()">
@@ -1111,6 +1111,23 @@
         Persistent app-wide configuration. Stored in <code>app/backend/settings.json</code>
         (gitignored, never leaves your machine).
       </p>
+    </section>
+
+    <section class="card auto-update-card memory-policy-card" x-show="memoryPolicy.loaded" x-cloak>
+      <div class="auto-update-head"><div><h2>Model memory</h2><p class="muted">Keep the most recent MusicGen, Stable Audio, or Bark model warm, or return unified memory after Music Studio becomes idle.</p></div><span class="auto-update-state" :class="memoryPolicy.busy ? 'checking' : (memoryPolicy.loaded_model ? 'available' : 'succeeded')" x-text="memoryPolicy.busy ? 'working' : (memoryPolicy.loaded_model ? 'model loaded' : 'memory clear')"></span></div>
+      <fieldset class="auto-update-mode-group" @change="markMemoryPolicyDirty()">
+        <legend>Performance mode</legend>
+        <div class="auto-update-mode-options memory-policy-options">
+          <label class="auto-update-mode-option" :class="{active:memoryPolicy.draft.mode==='performance'}"><input type="radio" name="memory-policy-mode" value="performance" x-model="memoryPolicy.draft.mode"><span><strong>Performance · default</strong><small>Keep the latest model warm for a faster repeat generation.</small></span></label>
+          <label class="auto-update-mode-option" :class="{active:memoryPolicy.draft.mode==='balanced'}"><input type="radio" name="memory-policy-mode" value="balanced" x-model="memoryPolicy.draft.mode"><span><strong>Balanced</strong><small>Unload after 10 minutes without a generation.</small></span></label>
+          <label class="auto-update-mode-option" :class="{active:memoryPolicy.draft.mode==='memory_saver'}"><input type="radio" name="memory-policy-mode" value="memory_saver" x-model="memoryPolicy.draft.mode"><span><strong>Memory Saver</strong><small>Unload after 2 idle minutes.</small></span></label>
+          <label class="auto-update-mode-option" :class="{active:memoryPolicy.draft.mode==='immediate'}"><input type="radio" name="memory-policy-mode" value="immediate" x-model="memoryPolicy.draft.mode"><span><strong>Immediate</strong><small>Unload after every completed generation.</small></span></label>
+        </div>
+      </fieldset>
+      <div class="auto-update-actions"><button class="primary" @click="saveMemoryPolicy()" :disabled="memoryPolicy.busy || !memoryPolicy.dirty" x-text="memoryPolicy.busy ? 'Working…' : 'Save mode'"></button><span class="auto-update-unsaved" x-show="memoryPolicy.dirty">Unsaved changes</span><span class="auto-update-action-spacer"></span><button class="ghost" @click="releaseMemory()" :disabled="memoryPolicy.busy">Release Memory / Unload Model</button></div>
+      <p class="auto-update-message" x-show="memoryPolicy.message" :class="memoryPolicy.messageKind" x-text="memoryPolicy.message"></p>
+      <div class="auto-update-status-grid"><div><span>Current mode</span><strong x-text="memoryPolicy.mode.replace('_',' ')"></strong></div><div><span>Local model</span><strong x-text="memoryModelLabel()"></strong></div><div><span>Next release</span><strong x-text="memoryPolicy.next_release_at ? memoryPolicyTime(memoryPolicy.next_release_at) : (memoryPolicy.mode==='performance' ? 'Manual only' : 'After next generation')"></strong></div><div><span>Last release</span><strong x-text="memoryPolicyTime(memoryPolicy.last_release_at)"></strong></div><div><span>Release count</span><strong x-text="memoryPolicy.release_count || 0"></strong></div><div><span>Activity Monitor</span><strong x-text="memoryPolicy.process_title || 'Music Studio Mac'"></strong></div></div>
+      <p class="muted">Downloaded weights and generated WAV files stay on disk. Failed or cancelled generations still release their model for safety.</p>
     </section>
 
     <section class="card auto-update-card" x-show="autoUpdate.loaded" x-cloak>

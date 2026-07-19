@@ -70,6 +70,15 @@ monitoring. Configuration, checks, updates, and retry use POST endpoints under
 `/api/auto-update/`. Logs live in `logs/auto_update/`, and turning the feature
 Off unloads its schedule immediately.
 
+Settings also includes opt-in model-memory controls. **Performance** is the
+default and keeps the latest MusicGen, Stable Audio, or Bark model loaded for a
+faster repeat generation. Balanced unloads after 10 idle minutes, Memory Saver
+after 2 minutes, and Immediate after each completed generation. Use **Release
+Memory / Unload Model** at any time when no generation is queued or running.
+This only releases process and accelerator memory; downloaded models and WAV
+outputs remain on disk. The same controls are available over
+`GET/PUT /api/memory-policy` and `POST /api/memory/release`.
+
 ## Local output retention
 
 Completed music files are temporary local backups. Automatic cleanup is enabled
