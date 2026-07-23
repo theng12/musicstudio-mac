@@ -10,6 +10,21 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.8.1] — 2026-07-23
+
+### Changed — 30-day fleet backup retention
+
+- Raised completed music-output backup retention from 3 days to 30 days while
+  retaining the existing 80 GB hard cap and oldest-first emergency cleanup.
+- Existing saved 3-day policies migrate automatically once during update.
+  Explicit choices saved afterward remain respected, so offline and online
+  workers require no individual configuration.
+
+### Verification
+
+- Added regression coverage for legacy migration and post-migration overrides.
+  **Just run Update.**
+
 ## [1.8.0] — 2026-07-20
 
 ### Added — opt-in model memory controls
