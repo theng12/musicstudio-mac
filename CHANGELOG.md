@@ -10,6 +10,23 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.8.3] — 2026-07-24
+
+### Fixed — Pinokio 8 maintenance crash
+
+- One-click Update and Install Generation now resolve this app's `start.js` to
+  its canonical absolute path before calling Pinokio's `script.stop` API.
+  Pinokio 8.0.40 no longer receives the rejected bare relative URI that could
+  crash its interface with an unhandled rejection.
+- Startup-service behavior, dependency locks, model installation, music queues,
+  and active jobs are otherwise unchanged.
+
+### Verification
+
+- Added launcher contract coverage requiring canonical stop URIs in every Music
+  Studio maintenance path. Node syntax, backend compilation, and the complete
+  test suite pass. **Just run Update.**
+
 ## [1.8.2] — 2026-07-24
 
 ### Fixed — verified music memory recovery and safer watchdog restarts
