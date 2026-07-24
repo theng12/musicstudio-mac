@@ -45,6 +45,42 @@ _GEN_LOCK = threading.Lock()
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 HISTORY_FILE = OUTPUT_DIR / ".history.json"
 HISTORY_MAX = 200
+MEMORY_RETRY_LIMIT = 1
+MEMORY_RESTART_FAILURES = 2
+
+
+def _memory_snapshot() -> Optional[dict]:
+    try:
+        import psutil
+        vm = psutil.virtual_memory()
+        return {
+            "total_gb": round(vm.total / 1e9, 2),
+            "available_gb": round(vm.available / 1e9, 2),
+            "used_gb": round(vm.used / 1e9, 2),
+            "percent": float(vm.percent),
+        }
+    except Exception:
+        return None
+
+
+def _is_memory_failure(exc: BaseException) -> bool:
+    """Recognize allocator exhaustion without misclassifying ordinary errors."""
+    if isinstance(exc, MemoryError):
+        return True
+    message = f"{type(exc).__name__}: {exc}".lower()
+    return any(
+        marker in message
+        for marker in (
+            "out of memory",
+            "out-of-memory",
+            "mps backend out of memory",
+            "cannot allocate memory",
+            "failed to allocate memory",
+            "metal allocation failed",
+            "mlx allocation failed",
+            "std::bad_alloc",
+        )
+    )
 
 
 # ───────────── soft imports of heavy deps ─────────────
@@ -346,6 +382,10 @@ class GenerationManager:
         self._bark_processor = None
         self._bark_model_repo: Optional[str] = None
         self._last_model_activity_at: Optional[float] = None
+        self._consecutive_memory_failures = 0
+        self._last_memory_event: Optional[dict] = None
+        self._restart_scheduled = False
+        self._restart_timer_started = False
         self._load_history()
 
     def is_available(self) -> bool:
@@ -380,6 +420,15 @@ class GenerationManager:
             return None
         return max(0.0, (time.time() if now is None else float(now)) - self._last_model_activity_at)
 
+    def memory_status(self) -> dict:
+        return {
+            "snapshot": _memory_snapshot(),
+            "consecutive_failures": self._consecutive_memory_failures,
+            "restart_scheduled": self._restart_scheduled,
+            "last_event": self._last_memory_event,
+            "service_supervised": self._service_installed(),
+        }
+
     def _release_cached_models(self, reason: str) -> dict:
         """Drop every in-process model reference. Caller must hold `_GEN_LOCK`."""
         key = self.loaded_model_key()
@@ -410,6 +459,97 @@ class GenerationManager:
             if self.has_active_jobs():
                 raise RuntimeError("music generation started before memory could be released")
             return self._release_cached_models(reason)
+
+    @staticmethod
+    def _service_installed() -> bool:
+        root = Path(__file__).resolve().parents[2]
+        return (root / "service" / ".installed").is_file()
+
+    def _record_memory_failure(self, exc: BaseException) -> None:
+        self._consecutive_memory_failures += 1
+        self._last_memory_event = {
+            "time": time.time(),
+            "error_type": type(exc).__name__,
+            "snapshot": _memory_snapshot(),
+        }
+        self._release_cached_models("verified-memory-failure")
+        print(
+            f"[gen] verified memory failure {self._consecutive_memory_failures}/"
+            f"{MEMORY_RESTART_FAILURES}; cached models and allocators evicted",
+            file=sys.stderr,
+            flush=True,
+        )
+        if (
+            self._consecutive_memory_failures < MEMORY_RESTART_FAILURES
+            or self._restart_scheduled
+        ):
+            return
+        if not self._service_installed():
+            print(
+                "[gen] repeated memory failures detected without startup-service "
+                "supervision; keeping Music Studio alive",
+                file=sys.stderr,
+                flush=True,
+            )
+            return
+        self._restart_scheduled = True
+
+    def _start_scheduled_restart(self) -> None:
+        """Exit only after the terminal job record has been persisted."""
+        if not self._restart_scheduled or self._restart_timer_started:
+            return
+        self._restart_timer_started = True
+
+        def _exit_for_launchd() -> None:
+            print(
+                "[gen] restarting Music Studio after repeated memory failures; "
+                "launchd KeepAlive will restore it",
+                file=sys.stderr,
+                flush=True,
+            )
+            os._exit(75)
+
+        timer = threading.Timer(0.75, _exit_for_launchd)
+        timer.daemon = True
+        timer.start()
+
+    def _dispatch_with_memory_recovery(
+        self,
+        job: GenerationJob,
+        output_path: Path,
+    ) -> None:
+        retries = 0
+        while True:
+            try:
+                self._dispatch_txt2music(job, output_path)
+                self._consecutive_memory_failures = 0
+                return
+            except Exception as exc:
+                try:
+                    output_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                if _is_memory_failure(exc):
+                    self._record_memory_failure(exc)
+                    if retries < MEMORY_RETRY_LIMIT and not self._restart_scheduled:
+                        retries += 1
+                        if job.resolved_seed is not None:
+                            job.params["seed"] = job.resolved_seed
+                        print(
+                            f"[gen] retrying once with the same seed after memory "
+                            f"recovery ({retries}/{MEMORY_RETRY_LIMIT})",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        continue
+                else:
+                    self._consecutive_memory_failures = 0
+                if self._restart_scheduled:
+                    raise RuntimeError(
+                        "Repeated memory failures; Music Studio is restarting "
+                        "automatically under launchd supervision."
+                    ) from exc
+                raise
 
     def _prepare_model_cache(self, repo: str, family: str) -> None:
         current = self.loaded_model_key()
@@ -592,7 +732,7 @@ class GenerationManager:
 
             try:
                 output_path = OUTPUT_DIR / f"{job.job_id}.wav"
-                self._dispatch_txt2music(job, output_path)
+                self._dispatch_with_memory_recovery(job, output_path)
                 if job.cancel_event.is_set():
                     job.state = "cancelled"
                 else:
@@ -618,6 +758,7 @@ class GenerationManager:
                 if job.state != "done":
                     self._release_cached_models("failed-or-cancelled-generation")
                 self._persist()
+                self._start_scheduled_restart()
 
     def _dispatch_txt2music(self, job: GenerationJob, output_path: Path) -> None:
         """Pick the right backend pipeline based on model family."""

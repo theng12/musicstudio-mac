@@ -10,6 +10,27 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.8.2] — 2026-07-24
+
+### Fixed — verified music memory recovery and safer watchdog restarts
+
+- Local music generation now retries one genuine allocator failure after
+  unloading MusicGen, Stable Audio, or Bark and clearing device caches. The
+  retry preserves the resolved seed and removes any incomplete WAV first.
+- A second allocator failure requests a launchd-supervised restart only after
+  the terminal job state is persisted. Validation, download, cancellation,
+  network, disk, and other ordinary failures do not enter the restart path.
+- Health and diagnostics now report privacy-safe memory and bounded restart-rate
+  evidence for Studio Hub alerts. The watchdog requires three consecutive
+  failed probes and resets its streak after recovery, avoiding restarts from one
+  transient timeout.
+
+### Verification
+
+- Added regression coverage for same-seed recovery, repeated-failure restart
+  ordering, normal-error exclusion, restart-rate telemetry, and watchdog
+  confirmation/reset behavior. **Just run Update.**
+
 ## [1.8.1] — 2026-07-23
 
 ### Changed — 30-day fleet backup retention

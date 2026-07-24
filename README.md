@@ -82,7 +82,7 @@ outputs remain on disk. The same controls are available over
 ## Local output retention
 
 Completed music files are temporary local backups. Automatic cleanup is enabled
-by default, keeps them for three days, and enforces an 80 GB hard cap by deleting
+by default, keeps them for 30 days, and enforces an 80 GB hard cap by deleting
 the oldest completed WAVs first. Active jobs, models, imports, uploads,
 credentials, and settings are excluded. Controls are available on Generate.
 
@@ -107,6 +107,14 @@ The WebUI footer shows the running version. The same value is also surfaced at:
 - `GET /api/version` → `{"app_version": "1.0.0", "title": "Music Studio KH"}`
 - `GET /api/health` → includes `app_version`
 - `GET /api/generate/diagnostics` → includes `app_version`
+
+Local music generation has verified memory self-protection. A genuine allocator
+failure unloads cached engines, clears device memory, removes incomplete WAV
+output, and retries once with the same resolved seed. A second allocator
+failure requests a supervised restart only when the startup service is
+installed and only after the terminal job state is saved. Health and diagnostics
+also expose privacy-safe memory and watchdog restart-rate evidence for Studio
+Hub alerts.
 
 ## Truth audit (for contributors)
 
