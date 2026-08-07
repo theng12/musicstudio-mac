@@ -10,6 +10,76 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.8.7] — 2026-08-08
+
+### Fixed — `psutil` was not a declared base dependency
+
+- `memory_policy.default_mode()` imports `psutil` unconditionally on every
+  install to size the machine-aware default, but `psutil` was only declared
+  in `requirements-generation.lock.txt` — a transitive pin from `accelerate`
+  in the optional torch/transformers stack installed by
+  `install_generation.js`, not the base install `install.js` actually runs
+  (`requirements.txt` / `requirements.lock.txt`).
+- On a genuinely fresh base-only install, `psutil` would be missing; the
+  `ImportError` is caught and swallowed inside `default_mode()`, silently
+  falling back to `DEFAULT_MODE` ("balanced") regardless of host memory —
+  quietly defeating the fix v1.8.5 shipped, on the machines that need it
+  most. This checkout's own `conda_env` happened to already have `psutil`
+  7.2.2 installed (not from a fresh `install.js` run), which is why the gap
+  wasn't visible locally.
+- Added `psutil>=7.0` to `requirements.txt` and pinned `psutil==7.2.2` in
+  `requirements.lock.txt` so the base install always has it. Left the
+  generation-stack lock file alone. Added a test asserting both base
+  requirement files declare `psutil` so this can't regress silently.
+
+## [1.8.6] — 2026-08-08
+
+### Fixed — the mode picker still called Performance the default
+
+- v1.8.5 made the default depend on the host's memory, but the settings UI
+  still hardcoded "Performance · default". On every 8 GB machine — which is
+  most of the fleet — that label was simply false, and it pointed the owner
+  at the exact mode that caused the thrash.
+- The badge is now bound to the `default_mode` the backend actually reports,
+  so it follows the machine instead of a constant. Test asserts the
+  hardcoded label is gone and that all four modes are bound.
+
+## [1.8.5] — 2026-08-07
+
+### Fixed — the memory policy shipped a default that could never fire
+
+- The idle-release mechanism is fully implemented and its background thread
+  has been running on every machine the whole time, waking every 5 s. It just
+  had nothing to do: the shipped default was `performance`, whose
+  `idle_seconds` is `None`, so `run_due_release()` returned immediately every
+  single time.
+- This is not a Music Studio bug so much as a shared-assumption bug. Image,
+  Chat, Video, Music and Voice Studio all ship the *same* skeleton with the
+  *same* `DEFAULT_MODE = "performance"`. That default is reasonable for an app
+  that owns its machine. The actual deployment puts 3-5 of them on one 8 GB
+  Mac, where each independently concludes that pinning its model forever is
+  free.
+- Measured fleet-wide 2026-08-07: 16 of 19 machines sat below the memory
+  guard's 3.2 GB floor with 1.5-4.4 GB of swap burned and could not start a
+  job at all.
+- The default is now chosen from the host's own memory — `memory_saver`
+  (120 s) below 12 GB, `balanced` (600 s) above — instead of assuming a
+  machine alone. An operator's explicit choice, persisted in
+  `memory_policy.json`, still wins; `performance` remains available and still
+  pins when asked for.
+- Note this only fixes *fresh installs*. `memory_policy.json` is gitignored,
+  so an in-place Update or Reset never resets an operator-chosen mode.
+- **The same one-line default is still shipped by Image, Chat and Video
+  Studio, and Render Studio has no idle-release mechanism at all.** Those are
+  separate products with their own release flows and are not changed here.
+
+### Verification
+
+- Rewrote the memory-policy tests: explicit `performance` still pins when
+  chosen, the new default now releases on idle, and `default_mode()` picks
+  `memory_saver`/`balanced` correctly from measured host memory. Full test
+  suite passes. **Just run Update.**
+
 ## [1.8.3] — 2026-07-24
 
 ### Fixed — Pinokio 8 maintenance crash
