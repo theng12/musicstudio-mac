@@ -172,6 +172,22 @@ def test_shipped_default_actually_releases_on_idle(monkeypatch) -> None:
     assert memory_policy.default_mode() == "balanced"
 
 
+def test_psutil_is_declared_in_the_base_requirements() -> None:
+    """memory_policy.default_mode() imports psutil unconditionally on every
+    install, but psutil used to be declared only in
+    requirements-generation.lock.txt — the optional torch/transformers
+    stack installed by install_generation.js, not the base install.js path.
+    A base-only install would hit the swallowed ImportError in
+    default_mode() and silently fall back to DEFAULT_MODE regardless of
+    host memory, defeating the fix on exactly the small machines it targets.
+    Guard both base files so this can't regress silently."""
+    root = Path(__file__).resolve().parents[1]
+    requirements_txt = (root / "requirements.txt").read_text(encoding="utf-8")
+    requirements_lock_txt = (root / "requirements.lock.txt").read_text(encoding="utf-8")
+    assert "psutil" in requirements_txt
+    assert "psutil" in requirements_lock_txt
+
+
 def test_operator_choice_still_wins_over_the_machine_default(monkeypatch, tmp_path) -> None:
     """An explicit mode is persisted and must survive; the memory-aware default
     only applies when nobody has chosen."""

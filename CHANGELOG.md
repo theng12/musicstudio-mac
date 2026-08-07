@@ -10,6 +10,28 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.8.7] — 2026-08-08
+
+### Fixed — `psutil` was not a declared base dependency
+
+- `memory_policy.default_mode()` imports `psutil` unconditionally on every
+  install to size the machine-aware default, but `psutil` was only declared
+  in `requirements-generation.lock.txt` — a transitive pin from `accelerate`
+  in the optional torch/transformers stack installed by
+  `install_generation.js`, not the base install `install.js` actually runs
+  (`requirements.txt` / `requirements.lock.txt`).
+- On a genuinely fresh base-only install, `psutil` would be missing; the
+  `ImportError` is caught and swallowed inside `default_mode()`, silently
+  falling back to `DEFAULT_MODE` ("balanced") regardless of host memory —
+  quietly defeating the fix v1.8.5 shipped, on the machines that need it
+  most. This checkout's own `conda_env` happened to already have `psutil`
+  7.2.2 installed (not from a fresh `install.js` run), which is why the gap
+  wasn't visible locally.
+- Added `psutil>=7.0` to `requirements.txt` and pinned `psutil==7.2.2` in
+  `requirements.lock.txt` so the base install always has it. Left the
+  generation-stack lock file alone. Added a test asserting both base
+  requirement files declare `psutil` so this can't regress silently.
+
 ## [1.8.6] — 2026-08-08
 
 ### Fixed — the mode picker still called Performance the default
