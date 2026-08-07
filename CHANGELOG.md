@@ -10,6 +10,42 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.8.5] — 2026-08-07
+
+### Fixed — the memory policy shipped a default that could never fire
+
+- The idle-release mechanism is fully implemented and its background thread
+  has been running on every machine the whole time, waking every 5 s. It just
+  had nothing to do: the shipped default was `performance`, whose
+  `idle_seconds` is `None`, so `run_due_release()` returned immediately every
+  single time.
+- This is not a Music Studio bug so much as a shared-assumption bug. Image,
+  Chat, Video, Music and Voice Studio all ship the *same* skeleton with the
+  *same* `DEFAULT_MODE = "performance"`. That default is reasonable for an app
+  that owns its machine. The actual deployment puts 3-5 of them on one 8 GB
+  Mac, where each independently concludes that pinning its model forever is
+  free.
+- Measured fleet-wide 2026-08-07: 16 of 19 machines sat below the memory
+  guard's 3.2 GB floor with 1.5-4.4 GB of swap burned and could not start a
+  job at all.
+- The default is now chosen from the host's own memory — `memory_saver`
+  (120 s) below 12 GB, `balanced` (600 s) above — instead of assuming a
+  machine alone. An operator's explicit choice, persisted in
+  `memory_policy.json`, still wins; `performance` remains available and still
+  pins when asked for.
+- Note this only fixes *fresh installs*. `memory_policy.json` is gitignored,
+  so an in-place Update or Reset never resets an operator-chosen mode.
+- **The same one-line default is still shipped by Image, Chat and Video
+  Studio, and Render Studio has no idle-release mechanism at all.** Those are
+  separate products with their own release flows and are not changed here.
+
+### Verification
+
+- Rewrote the memory-policy tests: explicit `performance` still pins when
+  chosen, the new default now releases on idle, and `default_mode()` picks
+  `memory_saver`/`balanced` correctly from measured host memory. Full test
+  suite passes. **Just run Update.**
+
 ## [1.8.3] — 2026-07-24
 
 ### Fixed — Pinokio 8 maintenance crash
