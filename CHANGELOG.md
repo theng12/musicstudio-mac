@@ -10,6 +10,18 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.8.6] — 2026-08-08
+
+### Fixed — the mode picker still called Performance the default
+
+- v1.8.5 made the default depend on the host's memory, but the settings UI
+  still hardcoded "Performance · default". On every 8 GB machine — which is
+  most of the fleet — that label was simply false, and it pointed the owner
+  at the exact mode that caused the thrash.
+- The badge is now bound to the `default_mode` the backend actually reports,
+  so it follows the machine instead of a constant. Test asserts the
+  hardcoded label is gone and that all four modes are bound.
+
 ## [1.8.5] — 2026-08-07
 
 ### Fixed — the memory policy shipped a default that could never fire
