@@ -58,7 +58,6 @@ starlette==1.0.1
 sympy==1.14.0
 tokenizers==0.22.2
 torch==2.12.0
-torchaudio==2.11.0
 tqdm==4.67.3
 transformers==5.9.0
 typer==0.25.1

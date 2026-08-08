@@ -42,13 +42,11 @@ are updated together:
 | Value | Meaning |
 | --- | --- |
 | `text-to-music` | Creates music from a text prompt. |
-| `melody-continuation` | Accepts or is designed for melody conditioning. |
 | `sound-effects` | Creates ambience, foley, or non-musical audio. |
 | `vocal` | Supports singing, lyrics, or vocal-style output. |
 | `stereo` | Produces native stereo output. |
 
-Capabilities must describe the weights honestly. If the current UI or worker
-does not expose the capability yet, say so in `best_for` and `use_cases`.
+Capabilities must describe behavior the current UI and worker actually expose.
 
 ### Comparison fields
 
@@ -62,8 +60,7 @@ Every `ModelEntry` must include these family-library fields:
   relative label for Apple Silicon, not a promised benchmark.
 - `runtime`: the hardware/runtime layer. Current local entries use
   `PyTorch / MPS`; use `Apple MLX` only for a genuinely MLX-native worker.
-- `format_label`: the loader ecosystem, such as `Transformers`, `Diffusers`,
-  `Audiocraft`, `Stable Audio Tools`, or the model's native pipeline.
+- `format_label`: the loader ecosystem: currently `Transformers` or `Diffusers`.
 
 Also keep these existing values accurate:
 
@@ -126,12 +123,12 @@ ModelEntry(
 1. Add one `Family` to `FAMILIES` with a stable ID, clear summary, and actionable
    prompting guidance.
 2. Add its `ModelEntry` records to `CATALOG`.
-3. Add the family to generation diagnostics and dispatch only if a real worker
-   exists. Relevant files are `app/backend/generation.py` and the availability
-   response in `app/backend/main.py`.
-4. If no worker exists, downloads may still be useful, but `best_for` and at least
-   one `avoid` use case must say `worker in roadmap`. The UI must not imply the
-   cached model can generate.
+3. Implement and verify the real generation worker in
+   `app/backend/generation.py` before adding the family to the catalog. The
+   production catalog must not advertise download-only roadmap engines.
+4. Add the family to generation diagnostics and dispatch. Relevant files are
+   `app/backend/generation.py` and the availability response in
+   `app/backend/main.py`.
 5. If the new capability vocabulary is unavoidable, add a label and explanation
    in `capabilityLabel()` and `capabilityHint()` in `app/frontend/app.js`, then
    verify filtering and mobile layout.
@@ -195,8 +192,8 @@ With the app running, verify:
    widths.
 6. Download starts, progress renders, cancellation works, and completion updates
    the row without a page reload.
-7. A cached model with a wired engine shows `Use model`; a cached unsupported
-   family shows `Not ready` and explains its status under Details.
+7. Every cached model has a wired engine and shows `Use model` when its runtime
+   dependencies are installed.
 8. Existing generation still loads the same repo and obeys its duration ceiling.
 
 Never edit Pinokio launcher scripts merely to add a catalog model. Launcher

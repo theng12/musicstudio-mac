@@ -355,7 +355,6 @@ function studio() {
       const buckets = [
         { id: "overall",  label: "Best overall",          icon: "🏆", model: pick(() => true) },
         { id: "music",    label: "Best text-to-music",     icon: "🎵", model: pick(m => hasCap(m, "text-to-music")) },
-        { id: "melody",   label: "Best melody continuation", icon: "🎼", model: pick(m => hasCap(m, "melody-continuation")) },
         { id: "stereo",   label: "Best stereo",            icon: "🔊", model: pick(m => hasCap(m, "stereo")) },
         { id: "sfx",      label: "Best sound effects",     icon: "💥", model: pick(m => hasCap(m, "sound-effects")) },
       ];
@@ -427,7 +426,6 @@ function studio() {
       for (const m of this.models) for (const c of (m.capabilities || [])) set.add(c);
       const order = {
         "text-to-music": 0,
-        "melody-continuation": 1,
         "sound-effects": 2,
         vocal: 3,
         stereo: 4,
@@ -492,8 +490,7 @@ function studio() {
       const caps = this.familyCapabilities(family);
       if (caps.includes("vocal")) return "tone-vocal";
       if (caps.includes("sound-effects") && !caps.includes("text-to-music")) return "tone-sfx";
-      if (family.id === "stable-audio" || family.id === "audioldm2") return "tone-diffusion";
-      if (family.id === "riffusion") return "tone-experimental";
+      if (family.id === "stable-audio") return "tone-diffusion";
       return "tone-music";
     },
     get hasActiveFilters() {
@@ -874,11 +871,6 @@ function studio() {
     modelOptionLabel(m) {
       const e = (this.diag.engines || []).find(x => x.family === m.family);
       if (!e || e.ready) return m.label;
-      // Distinguish "missing packages" (fixable by user) from "worker in roadmap"
-      // (not the user's fault — just hasn't shipped yet).
-      if (e.deps_ok === true && e.wired === false) {
-        return `🕓 ${m.label} — worker in roadmap`;
-      }
       return `⚠ ${m.label} — needs ${(e.missing || []).join(", ")}`;
     },
 
@@ -2119,7 +2111,6 @@ function studio() {
     capabilityLabel(c) {
       return {
         "text-to-music": "Music",
-        "melody-continuation": "Melody",
         "sound-effects": "Sound effects",
         vocal: "Vocals",
         stereo: "Stereo",
@@ -2129,7 +2120,6 @@ function studio() {
     capabilityHint(c) {
       return {
         "text-to-music": "Generate music from a text prompt.",
-        "melody-continuation": "Condition generation on a reference melody.",
         "sound-effects": "Generate ambience, foley, and non-musical audio.",
         vocal: "Supports singing or vocal-style output.",
         stereo: "Produces stereo rather than mono audio.",

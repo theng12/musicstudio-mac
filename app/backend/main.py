@@ -608,11 +608,6 @@ def start_txt2music(body: Txt2MusicBody) -> dict:
             status_code=400,
             detail=f"Model {body.repo} doesn't support text-to-music generation.",
         )
-    if not gen_manager.is_family_wired(model.family):
-        raise HTTPException(
-            status_code=409,
-            detail=f"The {model.family} generation worker is still on the roadmap. Pick MusicGen, Stable Audio, or Bark.",
-        )
     if cache.cache_state(body.repo) != "cached":
         raise HTTPException(
             status_code=409,

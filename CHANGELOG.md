@@ -10,6 +10,39 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.9.0] — 2026-08-09
+
+### Changed — the production catalog contains only runnable local models
+
+- Removed six download-only roadmap families—AudioGen, MAGNeT, AudioLDM 2,
+  Riffusion, ACE-Step, and YuE—plus the unsupported Stable Audio Tools small
+  checkpoint and the unexposed MusicGen Melody checkpoint. They could consume
+  several gigabytes each but had no end-to-end generation path in Music Studio.
+- The catalog now contains nine runnable local options across MusicGen, Stable
+  Audio Open 1.0, and Bark. Removed the dead dispatch failures, roadmap
+  dependency diagnostics, pending-worker UI states, roadmap documentation, and
+  the 331-line AST audit that existed only to police advertised-but-unrunnable
+  families.
+- Removed the unused `torchaudio` direct dependency and launcher verification.
+  Music Studio writes WAV files with `soundfile`; no runtime code imported
+  `torchaudio`, so generation install and Update remove that redundant PyTorch
+  companion package from existing environments as well as fresh ones.
+- Replaced that audit with a focused regression test requiring every catalog
+  family to match the local worker and dependency registries, limiting formats
+  to the two installed runtimes, and rejecting unexposed melody conditioning.
+- Existing cached weights for retired entries are deliberately left on disk;
+  the release stops advertising or loading them but does not delete operator
+  data. There were no direct hosted generation providers or cloud credentials
+  in Music Studio to remove.
+- Corrected the README to document the machine-aware memory default: fresh
+  Macs below 12 GB use Memory Saver, larger Macs use Balanced, and an explicit
+  saved operator choice still wins. Fleet auth, Hub discovery, idle/manual
+  unload, model downloads, local queues, storage retention, safe updates, and
+  startup-service behavior remain unchanged.
+- An already-running older backend keeps serving its old catalog until the next
+  normal Update/restart. No live process, active job, or saved memory policy was
+  changed during this release.
+
 ## [1.8.7] — 2026-08-08
 
 ### Fixed — `psutil` was not a declared base dependency

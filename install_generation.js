@@ -32,7 +32,8 @@ module.exports = {
         path: "app",
         conda: { "path": "{{path.resolve(cwd, 'conda_env')}}" },
         message: [
-          "uv pip install -r requirements-generation.txt"
+          "uv pip install -r requirements-generation.txt",
+          "uv pip uninstall torchaudio || true"
         ]
       }
     },
@@ -42,7 +43,7 @@ module.exports = {
         path: "app",
         conda: { "path": "{{path.resolve(cwd, 'conda_env')}}" },
         message: [
-          "python -c \"import torch, torchaudio, transformers; print('GEN_VERIFY_OK')\" 2>&1"
+          "python -c \"import torch, transformers, diffusers; print('GEN_VERIFY_OK')\" 2>&1"
         ],
         on: [{ event: "/(ModuleNotFoundError|ImportError|Traceback)/", break: true }]
       }

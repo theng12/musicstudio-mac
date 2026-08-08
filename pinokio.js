@@ -1,7 +1,7 @@
 module.exports = {
   version: "3.6",
   title: "Music Studio KH",
-  description: "Apple Silicon music generation — MusicGen, Stable Audio, AudioGen, Riffusion, Bark, ACE-Step.",
+  description: "Local Apple Silicon music generation with MusicGen, Stable Audio, and Bark.",
   icon: "icon.png",
   menu: async (kernel, info) => {
     const installed = info.exists("conda_env")

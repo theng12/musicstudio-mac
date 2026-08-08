@@ -1055,14 +1055,6 @@ input.num-input-wide { width: 130px; }
   font-size: 0.9em;
 }
 
-/* 3-state engine chip — pending (worker in roadmap) */
-.chip.engine-pending {
-  background: color-mix(in srgb, #fbbf24 18%, transparent);
-  border-color: color-mix(in srgb, #fbbf24 40%, transparent);
-  color: #fbbf24;
-}
-.diag-row-pending td { color: var(--warn); }
-.diag-pending { color: var(--warn); }
 .banner.info.dep-warn { margin-top: 12px; }
 
 

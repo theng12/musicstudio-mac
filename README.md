@@ -1,16 +1,14 @@
 # MusicStudio (Mac)
 
 Apple Silicon music generation studio — a sibling app to ImageStudio (Mac).
-Catalog-driven model management for MusicGen, Stable Audio Open, AudioGen,
-Riffusion, Bark, and ACE-Step.
+Catalog-driven local model management for MusicGen, Stable Audio Open, and
+Bark.
 
-Catalog browsing, resumable downloads, imports, settings, and music generation
-are live. MusicGen, Stable Audio Open 1.0, and Bark have working generation
-workers; other catalog families are clearly marked as roadmap engines.
+Every model in the production catalog has a working local generation path.
 
 ## What it does today
 
-- Browse a catalog of 18 open-source music / audio models with capability
+- Browse a catalog of 9 runnable open-source music / audio models with capability
   chips and "Best for:" descriptions per entry
 - Download models with live speed + ETA, resume on interrupt, parallel jobs
 - Import weights you already have via symlink or move
@@ -32,21 +30,18 @@ respectable performance on M-series chips.
 - `app/backend/cache.py / downloads.py / imports.py / settings.py` —
   identical to ImageStudio's. Shared infrastructure.
 - `app/backend/catalog.py` — music-specific. Each model entry has
-  `capabilities` (text-to-music / melody-continuation / sound-effects /
+  `capabilities` (text-to-music / sound-effects /
   vocal / stereo), `sample_rate_hz`, and `max_duration_seconds`.
 - `install_generation.js` deliberately does NOT install `audiocraft`
   (Meta's MusicGen library) because it pins old `torch==2.1.0`.
   We use `transformers.MusicgenForConditionalGeneration` directly instead.
 
-## Generation and roadmap
+## Generation
 
 - Text → music generation via `transformers` (MusicGen and Bark) and
   `diffusers` (Stable Audio Open 1.0)
 - Live queue/progress, chained clips with crossfade, reusable parameters,
   auto-play, WAV downloads, history, and output pruning
-- Roadmap workers: AudioGen, MAGNeT, Riffusion, ACE-Step, AudioLDM 2, and YuE
- - Melody continuation tab (drop / paste / pick reference audio, use
-  `MusicgenMelodyForConditionalGeneration`)
 
 ## Sidebar maintenance actions
 
@@ -70,10 +65,12 @@ monitoring. Configuration, checks, updates, and retry use POST endpoints under
 `/api/auto-update/`. Logs live in `logs/auto_update/`, and turning the feature
 Off unloads its schedule immediately.
 
-Settings also includes opt-in model-memory controls. **Performance** is the
-default and keeps the latest MusicGen, Stable Audio, or Bark model loaded for a
-faster repeat generation. Balanced unloads after 10 idle minutes, Memory Saver
-after 2 minutes, and Immediate after each completed generation. Use **Release
+Settings also includes model-memory controls. Fresh installs choose a
+fleet-safe default from host memory: Macs below 12 GB use **Memory Saver** and
+unload after 2 idle minutes; larger Macs use **Balanced** and unload after 10
+idle minutes. An explicitly saved operator choice always wins. **Performance**
+keeps the latest model loaded, and **Immediate** unloads after each completed
+generation. Use **Release
 Memory / Unload Model** at any time when no generation is queued or running.
 This only releases process and accelerator memory; downloaded models and WAV
 outputs remain on disk. The same controls are available over
@@ -116,24 +113,9 @@ installed and only after the terminal job state is saved. Health and diagnostics
 also expose privacy-safe memory and watchdog restart-rate evidence for Studio
 Hub alerts.
 
-## Truth audit (for contributors)
-
-The Models tab shows a green "✓ engine ready" chip per model. That chip is driven by the `_WIRED_FAMILIES` set in `app/backend/generation.py`. If a family is in `_WIRED_FAMILIES` but its dispatch branch raises `NotImplementedError`, users see a green chip and then hit a wall when they click Generate.
-
-To prevent that drift, run the truth audit before any release that touches `generation.py`:
-
-```
-python3 audit_truth.py            # human-readable report
-python3 audit_truth.py --strict   # exits non-zero on drift (for CI)
-```
-
-The script reads `app/backend/catalog.py` + `app/backend/generation.py` via AST and reports four kinds of drift: commission lies, omission lies, orphan families, and phantom wires.
-
-No deps beyond stdlib — runs without the venv.
-
 ## API
 
-Phase 1 endpoints (all working):
+Endpoints:
 
 ```
 GET    /api/health
@@ -159,8 +141,6 @@ GET    /api/generate/jobs/{id}
 GET    /api/generate/jobs/{id}/audio
 GET    /api/generate/stream
 ```
-
-Roadmap endpoints: `/api/generate/melody` and `/api/generate/sfx`.
 
 ## Run as an always-on server (auto-start + self-healing)
 

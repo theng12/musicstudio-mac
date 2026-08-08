@@ -7,7 +7,6 @@
 # (MusicgenForConditionalGeneration), so we use that path instead.
 
 torch>=2.6
-torchaudio>=2.6
 transformers>=4.55
 diffusers>=0.30
 accelerate>=0.30

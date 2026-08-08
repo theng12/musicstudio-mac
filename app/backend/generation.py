@@ -1,19 +1,15 @@
 """
 Music generation manager.
 
-Wraps `transformers.MusicgenForConditionalGeneration` (for MusicGen — the
-AudioGen HF repo ships only audiocraft-format weights, so it routes to the
-not-wired branch) and `diffusers.StableAudioPipeline` (for Stable Audio
-Open) in a thread-per-job pattern that mirrors the ImageStudio download /
-generation manager.
+Wraps `transformers.MusicgenForConditionalGeneration`,
+`diffusers.StableAudioPipeline`, and `transformers.BarkModel` in a
+thread-per-job pattern that mirrors the ImageStudio download / generation
+manager.
 
 Worker dispatch is keyed off `model.family`:
 - musicgen           → MusicgenForConditionalGeneration via transformers
-- audiogen           → not wired (HF repo is audiocraft-format only, needs the `audiocraft` library)
 - stable-audio       → StableAudioPipeline via diffusers
-- riffusion          → not wired (uses diffusers SD pipeline + spectrogram→audio decode)
 - bark               → BarkModel via transformers
-- ace-step           → not wired (needs its own `ace-step` library + ≥24 GB RAM)
 
 Outputs land in `app/output/<job_id>.wav` and are persisted to
 `app/output/.history.json` (same shape as ImageStudio's gen history) so they
@@ -90,7 +86,7 @@ MUSIC_GEN_IMPORT_ERROR: Optional[str] = None
 try:
     import torch  # noqa: F401
     import transformers  # noqa: F401
-    # diffusers is optional — only needed for Stable Audio / Riffusion
+    # diffusers is optional — only needed for Stable Audio
     try:
         import diffusers  # noqa: F401
         _HAVE_DIFFUSERS = True
@@ -137,8 +133,7 @@ def _detect_device() -> str:
 # it should also show up here so the user can see whether it loaded.
 _PACKAGE_CHECKLIST = [
     ("torch",         "Core ML framework + MPS device support"),
-    ("torchaudio",    "Audio tensor utilities (we use soundfile for save, not torchaudio.save)"),
-    ("transformers",  "MusicGen / AudioGen / Bark model architectures"),
+    ("transformers",  "MusicGen and Bark model architectures"),
     ("diffusers",     "Stable Audio Open pipeline"),
     ("accelerate",    "Multi-device model loading (transformers needs it)"),
     ("soundfile",     "WAV file writing (libsndfile)"),
@@ -150,34 +145,10 @@ _PACKAGE_CHECKLIST = [
 # the UI shows which engines are ready and which are blocked.
 _ENGINE_REQUIREMENTS = {
     "musicgen":     ["torch", "transformers", "soundfile", "accelerate"],
-    "audiogen":     ["torch", "transformers", "soundfile", "accelerate"],
     "stable-audio": ["torch", "diffusers", "soundfile", "accelerate"],
-    # roadmap engines — listed so the UI can show what they'll need
-    "riffusion":    ["torch", "diffusers", "soundfile"],
     "bark":         ["torch", "transformers", "soundfile"],
-    "ace-step":     ["torch", "transformers", "soundfile"],  # also needs `ace-step` lib
-    "audioldm2":    ["torch", "diffusers", "soundfile"],
-    "magnet":       ["torch", "soundfile"],  # also needs `audiocraft`
-    "yue":          ["torch", "transformers", "soundfile"],
 }
 
-# Which engines have a fully-working worker. Keep in sync with the branches in
-# `_dispatch_txt2music`. Anything not in this set will be reported as
-# "🕓 worker in roadmap" rather than misleadingly green-checked.
-#
-# NB on audiogen: the facebook/audiogen-medium HF repo ships only
-# audiocraft-format weights (`state_dict.bin` + `compression_state_dict.bin`) —
-# no config.json, no tokenizer files, no safetensors. So transformers'
-# AutoProcessor (and even AutoTokenizer / from_pretrained on the model class)
-# all fail at load time with `Unrecognized processing class in
-# facebook/audiogen-medium`. _dispatch_txt2music now rejects audiogen with a
-# clear NotImplementedError instead of routing to _generate_musicgen.
-#
-# History: a prior "v1.1.4 truth audit" mistakenly added "audiogen" here
-# thinking the MusicGen worker handled it — that was wrong, and users hit the
-# processor-class ValueError at Generate time. Reverting to not-wired.
-# Genuinely wiring AudioGen requires adding `audiocraft` (Meta's library) as
-# a dep + a separate `_generate_audiogen` worker.
 _WIRED_FAMILIES = {"musicgen", "stable-audio", "bark"}
 
 
@@ -773,27 +744,10 @@ class GenerationManager:
         family = model.family
         if family == "musicgen":
             self._generate_musicgen(job, model, output_path)
-        elif family == "audiogen":
-            # facebook/audiogen-medium ships audiocraft-format weights only
-            # (no config.json / tokenizer / safetensors), so the transformers
-            # path used by _generate_musicgen blows up at AutoProcessor load
-            # with "Unrecognized processing class". Genuine support needs the
-            # `audiocraft` library + a separate worker. See _WIRED_FAMILIES
-            # comment for the full history.
-            raise NotImplementedError(
-                "AudioGen isn't wired yet — its HF repo only ships "
-                "audiocraft-format weights, not the transformers-compatible "
-                "files the MusicGen worker expects. For now use MusicGen "
-                "(music) or Stable Audio (sound-effects-friendly too)."
-            )
         elif family == "stable-audio":
             if not _HAVE_DIFFUSERS:
                 raise RuntimeError("diffusers is required for Stable Audio. Reinstall Generation.")
             self._generate_stable_audio(job, model, output_path)
-        elif family == "riffusion":
-            raise NotImplementedError(
-                "Riffusion pipeline is in the roadmap. For now use MusicGen or Stable Audio."
-            )
         elif family == "bark":
             if not _have_bark():
                 raise RuntimeError(
@@ -801,41 +755,19 @@ class GenerationManager:
                     "Run 'Install Generation' from the Pinokio sidebar to upgrade."
                 )
             self._generate_bark(job, model, output_path)
-        elif family == "ace-step":
-            raise NotImplementedError(
-                "ACE-Step pipeline is in the roadmap (needs the `ace-step` library). "
-                "For now use MusicGen or Stable Audio."
-            )
-        elif family == "audioldm2":
-            raise NotImplementedError(
-                "AudioLDM 2 is in the roadmap. For now use MusicGen or Stable Audio."
-            )
-        elif family == "magnet":
-            raise NotImplementedError(
-                "MAGNeT needs Meta's audiocraft runtime and is not wired yet. Use MusicGen for now."
-            )
-        elif family == "yue":
-            raise NotImplementedError(
-                "YuE full-song generation is not wired yet. Use MusicGen, Stable Audio, or Bark."
-            )
         else:
             raise NotImplementedError(f"No worker implemented for family '{family}'.")
 
-    # ----- MusicGen / AudioGen -----
+    # ----- MusicGen -----
 
     def _generate_musicgen(self, job: GenerationJob, model_entry, output_path: Path) -> None:
         """
-        Run MusicGen (or AudioGen — same architecture, different training set)
-        via transformers. Output is a 32 kHz waveform saved as WAV.
+        Run MusicGen via transformers. Output is a 32 kHz waveform saved as WAV.
 
         ~50 audio tokens per second of output, so duration_s * 50 ≈ max_new_tokens.
         """
         import torch
-        # NB: we deliberately use soundfile (libsndfile) for WAV writing instead
-        # of torchaudio.save. torchaudio>=2.6 routes save() through torchcodec,
-        # which is a separate-channel package that isn't auto-installed and
-        # blows up with ImportError("TorchCodec is required..."). soundfile is
-        # already in our requirements and writes WAV directly.
+        # soundfile writes WAV directly without another PyTorch companion package.
         import soundfile as sf
 
         params = job.params
@@ -921,7 +853,6 @@ class GenerationManager:
         Uses classifier-free guidance with negative prompts.
         """
         import torch
-        # See _generate_musicgen for why we use soundfile instead of torchaudio.save.
         import soundfile as sf
 
         params = job.params
