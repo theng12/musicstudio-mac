@@ -16,8 +16,8 @@ Every model in the production catalog has a working local generation path.
   flow), persistent JSON config
 - Network panel: detects your LAN + Tailscale IPs, shows direct API URLs,
   bind-port info, share-proxy state
-- HTTP API on `127.0.0.1:47869` (bound to all interfaces by default for
-  direct cross-device access)
+- HTTP API on port `47869`, bound to all interfaces by default for direct
+  loopback, LAN, and Tailscale access
 
 ## Why it's Mac-only
 

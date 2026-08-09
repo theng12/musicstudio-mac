@@ -21,7 +21,6 @@ function studio() {
     models: [],
     jobs: [],
     candidates: [],
-    loras: [],
     pendingDownload: null,
     confirmDialog: null,           // in-app confirm modal (webview-safe replacement for confirm())
     downloadToken: "",
@@ -81,11 +80,6 @@ function studio() {
       // music that exceeds a single model's max_duration_seconds.
       chainCount: 1,
       crossfadeSeconds: 0,
-      // Carryover state from imagestudio template — unused for music but kept
-      // because reuseParams / other helpers reference it. Safe to remove later.
-      quantize: null,
-      loraNames: [],
-      loraWeights: {},
       // `busy` reflects "a job is running or queued" — used by the output area
       //   to show progress. NOT used by the Generate button (would block queueing).
       busy: false,
@@ -124,8 +118,6 @@ function studio() {
       families: new Set(),
       statuses: new Set(),
       capabilities: new Set(),
-      // v1.1.2 — quick filter chips. MLX chip auto-hides if no MLX models exist.
-      mlxOnly: false,
       fitsMyMac: false,
       // v1.x — segmented RAM-fit filter, scored against the RAM slider:
       // "all" | "ok" (green) | "tight" (yellow) | "over" (red)
@@ -215,7 +207,6 @@ function studio() {
       });
       await this.refreshGenAvailability();
       await this.refreshDiagnostics();
-      await this.refreshLoras();
       await this.refreshSettings();
       await this.refreshAutoUpdate(true);
       await this.refreshMemoryPolicy(true, true);
@@ -384,9 +375,6 @@ function studio() {
             if (!caps.has(wanted)) return false;
           }
         }
-        // Apple Silicon (MLX) — only relevant if catalog has MLX entries.
-        // Music's catalog is currently 0 MLX; chip is auto-hidden in HTML.
-        if (f.mlxOnly && !m.apple_optimized) return false;
         // Segmented RAM-fit filter — scored live against the RAM slider.
         if (f.fitLevel && f.fitLevel !== "all") {
           const st = this.fitFor(m.min_unified_memory_gb).state;
@@ -496,7 +484,7 @@ function studio() {
     get hasActiveFilters() {
       const f = this.modelFilters;
       return !!(f.search.trim() || f.families.size || f.statuses.size || f.capabilities.size
-                || f.mlxOnly || f.fitsMyMac || (f.fitLevel && f.fitLevel !== "all"));
+                || f.fitsMyMac || (f.fitLevel && f.fitLevel !== "all"));
     },
     /** Human-readable list of every active filter — used by the empty state
      *  so users can SEE what cut their results and tap a single filter off. */
@@ -515,9 +503,6 @@ function studio() {
       }
       for (const cap of f.capabilities) {
         out.push({ label: `capability: ${cap}`, removeFn: () => this.toggleCapabilityFilter(cap) });
-      }
-      if (f.mlxOnly) {
-        out.push({ label: "🍎 MLX only", removeFn: () => this.toggleMlxFilter() });
       }
       if (f.fitsMyMac) {
         out.push({ label: "🖥 Fits my Mac", removeFn: () => this.toggleFitsMyMacFilter() });
@@ -543,9 +528,6 @@ function studio() {
       if (s.has(cap)) s.delete(cap); else s.add(cap);
       this.modelFilters.capabilities = new Set(s);
     },
-    toggleMlxFilter() {
-      this.modelFilters.mlxOnly = !this.modelFilters.mlxOnly;
-    },
     toggleFitsMyMacFilter() {
       this.modelFilters.fitsMyMac = !this.modelFilters.fitsMyMac;
     },
@@ -559,9 +541,7 @@ function studio() {
      *  never silently hide most of the catalog because of an old preference. */
     _initFilterPreferences() {
       try {
-        this.modelFilters.mlxOnly = false;
         this.modelFilters.fitsMyMac = false;
-        localStorage.removeItem("musicstudio.modelFilters.mlxOnly");
         localStorage.removeItem("musicstudio.modelFilters.fitsMyMac");
       } catch {}
     },
@@ -675,7 +655,6 @@ function studio() {
       this.modelFilters.families = new Set();
       this.modelFilters.statuses = new Set();
       this.modelFilters.capabilities = new Set();
-      this.modelFilters.mlxOnly = false;
       this.modelFilters.fitsMyMac = false;
       this.modelFilters.fitLevel = "all";
       this.modelFilters.sortBy = "default";
@@ -872,29 +851,6 @@ function studio() {
       const e = (this.diag.engines || []).find(x => x.family === m.family);
       if (!e || e.ready) return m.label;
       return `⚠ ${m.label} — needs ${(e.missing || []).join(", ")}`;
-    },
-
-    get canRuntimeQuant() {
-      // Only full checkpoints accept runtime quantization. Pre-quantized MLX
-      // variants are already at their final precision.
-      const m = this.selectedModel;
-      return !!m && !m.apple_optimized;
-    },
-
-    get outputFrameStyle() {
-      const w = this.gen.width || 1024;
-      const h = this.gen.height || 1024;
-      return `aspect-ratio: ${w} / ${h};`;
-    },
-
-    // FLUX text encoders (T5-XXL for FLUX.1, similar for FLUX.2) typically take
-    // ~512 tokens. Tokens ≠ characters, but for English ~3-4 chars per token is
-    // a reasonable rule of thumb. 1500 chars ≈ 400–500 tokens, so we warn near
-    // there. This is intentionally a soft limit — we don't block submission.
-    get promptSoftLimit() {
-      // Future hook: vary per model. For now FLUX-family models all share roughly
-      // the same encoder ceiling.
-      return 1500;
     },
 
     // ──────── API tab derived ────────
@@ -1465,14 +1421,6 @@ function studio() {
       }
     },
 
-    async refreshLoras() {
-      try {
-        const r = await fetch("/api/loras");
-        const data = await r.json();
-        this.loras = data.loras || [];
-      } catch { /* keep last */ }
-    },
-
     startGenStream() {
       if (this._genStreamHandle) this._genStreamHandle.close();
       const es = new EventSource("/api/generate/stream");
@@ -1590,38 +1538,6 @@ function studio() {
       }
       this._lastRandomPromptIndex = idx;
       this.gen.prompt = pool[idx];
-    },
-
-    toggleLora(name, on) {
-      if (on) {
-        if (!this.gen.loraNames.includes(name)) this.gen.loraNames.push(name);
-        if (this.gen.loraWeights[name] === undefined) this.gen.loraWeights[name] = 1.0;
-      } else {
-        this.gen.loraNames = this.gen.loraNames.filter(n => n !== name);
-        delete this.gen.loraWeights[name];
-      }
-    },
-
-    // ──────── input image helpers (img2img) ────────
-    setInputImage(blobOrFile, name) {
-      // Clear any previous object URL so we don't leak memory.
-      if (this.gen.inputImageUrl) {
-        try { URL.revokeObjectURL(this.gen.inputImageUrl); } catch {}
-      }
-      this.gen.inputImageFile = blobOrFile;
-      this.gen.inputImageUrl = URL.createObjectURL(blobOrFile);
-      this.gen.inputImageName = name || blobOrFile.name || "image";
-      // If we're not already in img2img mode, switch — the user clearly wants it.
-      if (this.gen.mode !== "img2img") this.gen.mode = "img2img";
-    },
-
-    clearInputImage() {
-      if (this.gen.inputImageUrl) {
-        try { URL.revokeObjectURL(this.gen.inputImageUrl); } catch {}
-      }
-      this.gen.inputImageFile = null;
-      this.gen.inputImageUrl = "";
-      this.gen.inputImageName = "";
     },
 
     handleImageDrop(e) {
@@ -2001,17 +1917,6 @@ function studio() {
       if (typeof p.crossfade_seconds === "number") this.gen.crossfadeSeconds = p.crossfade_seconds;
       const reuseSeed = job.resolved_seed ?? p.seed;
       if (typeof reuseSeed === "number") this.gen.seed = reuseSeed;
-      this.gen.loraNames   = [...(p.lora_names || [])];
-      this.gen.loraWeights = {};
-      (p.lora_names || []).forEach((n, i) => {
-        this.gen.loraWeights[n] = p.lora_scales?.[i] ?? 1.0;
-      });
-    },
-
-    async copyImageUrl(job) {
-      if (!job?.output_url) return;
-      const full = window.location.origin + job.output_url;
-      await this.copyText(full);
     },
 
     async revealInFolder(path) {

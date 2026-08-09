@@ -583,14 +583,6 @@ def generation_diagnostics() -> dict:
     return data
 
 
-# LoRAs aren't a meaningful music concept in our v1 stack — MusicGen fine-tunes
-# are a separate workflow. Returning empty keeps the frontend's catalog refresh
-# loop happy without 404s and leaves room for future music-LoRA support.
-@app.get("/api/loras")
-def list_loras_stub() -> dict:
-    return {"loras": []}
-
-
 @app.post("/api/generate/txt2music")
 def start_txt2music(body: Txt2MusicBody) -> dict:
     if not gen_manager.is_available():

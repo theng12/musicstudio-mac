@@ -10,6 +10,26 @@ Versioning follows [Semantic Versioning](https://semver.org/) with this project-
 
 ---
 
+## [1.9.1] — 2026-08-09
+
+### Changed — remove inactive image-template paths
+
+- Removed unused Image Studio carryovers from the Music frontend: runtime
+  quantization, input-image, LoRA state/helpers, and the hidden MLX-only filter.
+  Removed the backend's matching always-empty `/api/loras` compatibility stub.
+  None had a rendered control, generation consumer, or external route caller.
+- Corrected the copied Voice Studio identity in the updater test fixture and
+  clarified that port 47869 accepts loopback, LAN, and Tailscale connections
+  because the production service binds to all interfaces.
+- Declared Pydantic and Starlette as direct base dependencies because Music
+  Studio imports both at runtime instead of relying on FastAPI's transitive
+  installation. Existing known-good lock versions already satisfy the floors.
+
+The nine-model catalog, local workers, download SSE, fleet authentication,
+memory controls, storage retention, safe updates, and launcher scripts are
+unchanged. Verification: dependency integrity, Python compilation, JavaScript
+and launcher syntax, and all 49 tests pass.
+
 ## [1.9.0] — 2026-08-09
 
 ### Changed — the production catalog contains only runnable local models

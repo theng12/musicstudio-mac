@@ -12,7 +12,7 @@ from backend.auto_update import AutoUpdater, UpdateDeferred, UpdateError, _redac
 
 @pytest.fixture
 def updater(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AutoUpdater:
-    root = tmp_path / "voicestudio-mac.git"
+    root = tmp_path / "musicstudio-mac"
     (root / ".git").mkdir(parents=True)
     (root / "app").mkdir()
     (root / "conda_env" / "bin").mkdir(parents=True)
@@ -21,11 +21,11 @@ def updater(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AutoUpdater:
     python = root / "conda_env" / "bin" / "python"
     python.symlink_to(sys.executable)
     spec = {
-        "root": str(root), "title": "Voice Studio KH", "slug": "voicestudio-test",
-        "expected_remote": "https://github.com/theng12/voicestudio-mac.git",
-        "branch": "main", "port": 47870, "default_hour": 2,
-        "server_label": "com.kh.voicestudio.server",
-        "watchdog_label": "com.kh.voicestudio.watchdog",
+        "root": str(root), "title": "Music Studio KH", "slug": "musicstudio-test",
+        "expected_remote": "https://github.com/theng12/musicstudio-mac.git",
+        "branch": "main", "port": 47869, "default_hour": 5,
+        "server_label": "com.kh.musicstudio.server",
+        "watchdog_label": "com.kh.musicstudio.watchdog",
     }
     item = AutoUpdater(spec)
     monkeypatch.setattr(item, "scheduler_status", lambda: {
@@ -42,14 +42,14 @@ def updater(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AutoUpdater:
 
 def _save(updater: AutoUpdater, mode: str) -> dict:
     return updater.save_settings({
-        "mode": mode, "frequency": "daily", "maintenance_hour": 2,
+        "mode": mode, "frequency": "daily", "maintenance_hour": 5,
         "idle_only": True,
     })
 
 
 def test_default_is_off_and_idle_only(updater: AutoUpdater):
     assert updater.settings() == {
-        "mode": "off", "frequency": "daily", "maintenance_hour": 2,
+        "mode": "off", "frequency": "daily", "maintenance_hour": 5,
         "idle_only": True, "weekday": 6,
     }
     assert updater.public_status()["scheduler"]["installed"] is False
@@ -225,4 +225,3 @@ def test_build_suffix_version_matching(updater: AutoUpdater):
     updater.spec["allow_build_suffix"] = True
     assert updater._version_matches("1.22.0.abcdef0", "1.22.0")
     assert not updater._version_matches("1.21.9.abcdef0", "1.22.0")
-
